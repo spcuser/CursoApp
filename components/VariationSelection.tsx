@@ -24,7 +24,7 @@ export const VariationSelection: React.FC<VariationSelectionProps> = ({ pillar, 
       <span>
         {parts.map((p, i) => 
           regex.test(p) ? (
-            <mark key={i} className="bg-yellow-100 dark:bg-yellow-500/30 text-yellow-900 dark:text-yellow-100 rounded-[2px] px-[2px] mx-[-1px] font-medium border-b border-yellow-300 dark:border-yellow-700/50">
+            <mark key={i} className="bg-orange-100 dark:bg-orange-500/30 text-orange-900 dark:text-orange-100 rounded-[2px] px-[2px] mx-[-1px] font-medium border-b border-orange-300 dark:border-orange-700/50">
               {p}
             </mark>
           ) : p
@@ -38,30 +38,30 @@ export const VariationSelection: React.FC<VariationSelectionProps> = ({ pillar, 
       <div className="flex items-start justify-between">
         <button 
           onClick={onBack}
-          className="flex items-center gap-2 text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition-colors px-4 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"
+          className="flex items-center gap-2 text-slate-500 dark:text-slate-400 hover:text-orange-600 dark:hover:text-orange-400 transition-colors px-4 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 font-bold"
         >
           <ArrowLeft size={18} />
           <span>{t.variations.back}</span>
         </button>
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 text-sm font-medium">
+        <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-orange-50 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 text-sm font-black uppercase tracking-wider border border-orange-100 dark:border-orange-800/50">
           <BookOpen size={14} />
           <span>{t.steps.step2}</span>
         </div>
       </div>
 
       <div className="text-center max-w-3xl mx-auto space-y-4">
-        <h2 className="text-3xl font-bold text-slate-900 dark:text-white">{t.variations.title}</h2>
+        <h2 className="text-4xl font-black text-slate-900 dark:text-white tracking-tight">{t.variations.title}</h2>
         <p className="text-slate-600 dark:text-slate-400 text-lg">
-          {t.variations.subtitle} <span className="font-semibold text-slate-900 dark:text-slate-200">"{pillar.title}"</span>
+          {t.variations.subtitle} <span className="font-bold text-orange-600">"{pillar.title}"</span>
         </p>
 
-        <div className="bg-white dark:bg-slate-800 p-1 inline-flex rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm mt-4">
+        <div className="bg-white dark:bg-slate-800 p-1.5 inline-flex rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm mt-4">
           <button
             onClick={() => setDepth('express')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all ${
               depth === 'express' 
-                ? 'bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300 shadow-sm' 
-                : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'
+                ? 'bg-orange-600 text-white shadow-lg shadow-orange-500/30' 
+                : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
             }`}
           >
             <Zap size={16} />
@@ -69,10 +69,10 @@ export const VariationSelection: React.FC<VariationSelectionProps> = ({ pillar, 
           </button>
           <button
             onClick={() => setDepth('standard')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all ${
               depth === 'standard' 
-                ? 'bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300 shadow-sm' 
-                : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'
+                ? 'bg-orange-600 text-white shadow-lg shadow-orange-500/30' 
+                : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
             }`}
           >
             <Layers size={16} />
@@ -80,53 +80,56 @@ export const VariationSelection: React.FC<VariationSelectionProps> = ({ pillar, 
           </button>
           <button
             onClick={() => setDepth('deep')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all ${
               depth === 'deep' 
-                ? 'bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300 shadow-sm' 
-                : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'
+                ? 'bg-orange-600 text-white shadow-lg shadow-orange-500/30' 
+                : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
             }`}
           >
             <Book size={16} />
             {t.variations.depth.deep}
           </button>
         </div>
-        <p className="text-xs text-slate-400 dark:text-slate-500">
+        <p className="text-sm font-medium text-slate-400 dark:text-slate-500 italic">
           {depth === 'express' && t.variations.depth.expressDesc}
           {depth === 'standard' && t.variations.depth.standardDesc}
           {depth === 'deep' && t.variations.depth.deepDesc}
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {variations.map((variation) => (
           <button
             key={variation.id}
             onClick={() => onSelect(variation, depth)}
-            className="flex flex-col p-6 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl hover:border-purple-400 dark:hover:border-purple-500 hover:shadow-lg hover:ring-1 hover:ring-purple-400 dark:hover:ring-purple-500 transition-all text-left group"
+            className="flex flex-col p-8 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-[2rem] hover:border-orange-400 dark:hover:border-orange-500 hover:shadow-2xl transition-all text-left group relative overflow-hidden"
           >
-            <div className="flex justify-between items-start mb-2 w-full">
+            <div className="absolute top-0 right-0 p-6 opacity-0 group-hover:opacity-100 transition-all transform translate-x-4 group-hover:translate-x-0">
+              <ArrowRight size={24} className="text-orange-500" />
+            </div>
+
+            <div className="flex justify-between items-start mb-4">
               <span className={`
-                text-xs font-semibold px-2 py-1 rounded-md
-                ${variation.level === 'Principiante' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 
-                  variation.level === 'Intermedio' ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400' : 
-                  'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'}
+                text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full border
+                ${variation.level === 'Principiante' ? 'bg-emerald-50 text-emerald-700 border-emerald-100 dark:bg-emerald-900/20 dark:text-emerald-400 dark:border-emerald-800/50' : 
+                  variation.level === 'Intermedio' ? 'bg-amber-50 text-amber-700 border-amber-100 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-800/50' : 
+                  'bg-rose-50 text-rose-700 border-rose-100 dark:bg-rose-900/20 dark:text-rose-400 dark:border-rose-800/50'}
               `}>
                 {variation.level}
               </span>
-              <ArrowRight size={18} className="text-slate-300 group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors" />
             </div>
             
-            <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2 group-hover:text-purple-700 dark:group-hover:text-purple-400">
+            <h3 className="text-2xl font-black text-slate-900 dark:text-white mb-3 group-hover:text-orange-600 transition-colors leading-tight">
               {highlightMatch(variation.title)}
             </h3>
             
-            <p className="text-slate-500 dark:text-slate-400 text-sm mb-4 flex-grow">
+            <p className="text-slate-600 dark:text-slate-400 text-lg mb-8 leading-relaxed line-clamp-3">
               {highlightMatch(variation.description)}
             </p>
 
-            <div className="flex items-center gap-4 text-xs text-slate-400 dark:text-slate-500 border-t border-slate-100 dark:border-slate-700 pt-4 w-full">
-              <div className="flex items-center gap-1">
-                <Users size={14} />
+            <div className="mt-auto flex items-center gap-4 text-xs font-bold text-slate-400 dark:text-slate-500 border-t border-slate-50 dark:border-slate-700/50 pt-6">
+              <div className="flex items-center gap-2">
+                <Users size={16} className="text-orange-400" />
                 <span>{variation.targetAudience}</span>
               </div>
             </div>

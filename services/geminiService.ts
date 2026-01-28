@@ -87,7 +87,7 @@ const courseSchema: Schema = {
     title: { type: Type.STRING },
     subtitle: { type: Type.STRING },
     description: { type: Type.STRING },
-    primaryColor: { type: Type.STRING, enum: ["indigo", "emerald", "rose", "amber", "cyan", "violet"] },
+    primaryColor: { type: Type.STRING, enum: ["indigo", "emerald", "rose", "amber", "cyan", "violet", "orange"] },
     glossary: {
       type: Type.ARRAY,
       items: {
@@ -138,11 +138,7 @@ export const generateEbookIndex = async (course: Course, language: string): Prom
     Módulos: ${course.modules.map(m => m.title).join(', ')}
     
     Tu tarea es diseñar la arquitectura de un Ebook definitivo y enciclopédico sobre este tema.
-    REGLAS DE ESTRUCTURA (OBLIGATORIAS):
-    1. El índice debe tener EXACTAMENTE 10 CAPÍTULOS.
-    2. Cada capítulo debe tener MÍNIMO 3 TEMAS detallados.
-    3. El orden debe ser: Introducción, Fundamentos Teóricos, Herramientas, Metodologías, Implementación Práctica, Casos de Estudio, Errores Comunes, Estrategias Avanzadas, Futuro del Tema y Conclusiones Maestras.
-    
+    El índice debe tener 10 capítulos profundos.
     Idioma: ${language}. Responde solo JSON.
   `;
 
@@ -162,16 +158,9 @@ export const generateEbookIndex = async (course: Course, language: string): Prom
 export const generateEbookTopicContent = async (topicTitle: string, chapterTitle: string, bookTitle: string, language: string): Promise<string> => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const prompt = `
-    ESTÁS ESCRIBIENDO UN BEST-SELLER TÉCNICO.
-    Libro: "${bookTitle}"
-    Capítulo: "${chapterTitle}"
-    Tema específico: "${topicTitle}"
-    
-    INSTRUCCIONES DE CALIDAD:
-    1. EXTENSIÓN: Debes escribir al menos 1000 palabras para este tema. Sé extremadamente detallado.
-    2. ESTRUCTURA: Usa Markdown estrictamente. Usa ## y ### para secciones. Usa **negritas** para conceptos clave. Usa listas numeradas y viñetas.
-    3. PROFUNDIDAD: Explica el 'por qué', el 'cómo' y el 'cuándo'. Incluye pasos, filosofía y debates si aplica.
-    
+    Escribe un tema exhaustivo para un libro de alta gama: "${topicTitle}".
+    Usa un tono magistral, profesional y envolvente.
+    Estructura con Markdown (## y ###). Usa negritas (**) para enfatizar conceptos clave.
     Idioma: ${language}.
   `;
 
@@ -208,9 +197,9 @@ export const translateText = async (text: string, targetLanguage: string): Promi
 
 export const generatePillars = async (topic: string, language: string, contextContent?: string): Promise<{ pillars: Pillar[], relatedTopics: string[] }> => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-  let basePrompt = `Actúa como un mentor experto en: "${topic}".`;
-  if (contextContent) basePrompt += `\nUsa este contenido: ${contextContent.substring(0, 500000)}`;
-  basePrompt += `\nGenera 10 temas pilar y 3 temas relacionados. JSON. Idioma: ${language}.`;
+  let basePrompt = `Actúa como un mentor de clase mundial experto en: "${topic}".`;
+  if (contextContent) basePrompt += `\nUsa este material como base técnica: ${contextContent.substring(0, 500000)}`;
+  basePrompt += `\nIdentifica los 10 pilares fundamentales. JSON. Idioma: ${language}.`;
   const response = await ai.models.generateContent({
     model: 'gemini-3-flash-preview',
     contents: basePrompt,
@@ -222,7 +211,7 @@ export const generatePillars = async (topic: string, language: string, contextCo
 
 export const generateVariations = async (pillar: string, parentTopic: string, language: string): Promise<Variation[]> => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-  const prompt = `Genera 10 variaciones de curso para el pilar "${pillar}" del tema "${parentTopic}". JSON. Idioma: ${language}.`;
+  const prompt = `Genera 10 propuestas de cursos innovadores para el pilar "${pillar}" del ecosistema "${parentTopic}". JSON. Idioma: ${language}.`;
   const response = await ai.models.generateContent({
     model: 'gemini-3-flash-preview',
     contents: prompt,
@@ -234,26 +223,23 @@ export const generateVariations = async (pillar: string, parentTopic: string, la
 
 export const generateCourse = async (variationTitle: string, variationDescription: string, parentTopic: string, depth: CourseDepth, language: string): Promise<Course> => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-  let words = depth === 'express' ? "200" : depth === 'standard' ? "500" : "1000";
   const prompt = `
-    Crea un curso pedagógico y experto: "${variationTitle}". 
-    Contexto: ${variationDescription}. 
-    Profundidad: ${words} palabras por módulo. 
-    REQUISITO DE FORMATO CRÍTICO: 
-    - Escribe el contenido en Markdown profesional. 
-    - Usa ## para encabezados de sección y ### para subsecciones. 
-    - Usa **negritas** para enfatizar conceptos vitales. 
-    - Organiza la información en párrafos claros (doble salto de línea entre ellos). 
-    - Utiliza listas de viñetas (-) o numeradas (1.) cuando sea apropiado.
-    Idioma: ${language}.
+    Desarrolla un curso de nivel experto sobre: "${variationTitle}". 
+    Instrucciones de formato:
+    - Usa Markdown rico para contentMarkdown.
+    - Utiliza negritas (**) para destacar términos fundamentales.
+    - Implementa listas con viñetas (•) para una lectura ágil.
+    - Divide el contenido en secciones lógicas con subtítulos (##).
+    - Asegura una profundidad de contenido de tipo "${depth}".
+    Idioma: ${language}. Genera JSON detallado.
   `;
   const response = await ai.models.generateContent({
-    model: 'gemini-3-flash-preview',
+    model: 'gemini-3-pro-preview',
     contents: prompt,
     config: { 
       responseMimeType: 'application/json', 
       responseSchema: courseSchema,
-      thinkingConfig: { thinkingBudget: 2000 }
+      thinkingConfig: { thinkingBudget: 4000 }
     }
   });
   return JSON.parse(response.text || '{}') as Course;

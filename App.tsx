@@ -79,9 +79,6 @@ export default function App() {
   const isInitialLoad = useRef(true);
   const t = TRANSLATIONS[language] || TRANSLATIONS['Español'];
 
-  // --- PERSISTENCE LOGIC (FIXED) ---
-  
-  // 1. Initial Load
   useEffect(() => {
     const stored = localStorage.getItem('cursoapp_history');
     if (stored) {
@@ -93,15 +90,12 @@ export default function App() {
     isInitialLoad.current = false;
   }, []);
 
-  // 2. Safe Auto-Save Effect
   useEffect(() => {
     if (isInitialLoad.current || !currentSessionId || !topic) return;
-
     setSavedCourses(prev => {
       const now = Date.now();
       const updated = [...prev];
       const idx = updated.findIndex(c => c.id === currentSessionId);
-      
       const sessionData: SavedCourse = {
         id: currentSessionId,
         createdAt: idx >= 0 ? updated[idx].createdAt : now,
@@ -118,13 +112,8 @@ export default function App() {
         completedModuleIds,
         userHighlights
       };
-
-      if (idx >= 0) {
-        updated[idx] = sessionData;
-      } else {
-        updated.unshift(sessionData);
-      }
-      
+      if (idx >= 0) updated[idx] = sessionData;
+      else updated.unshift(sessionData);
       localStorage.setItem('cursoapp_history', JSON.stringify(updated));
       return updated;
     });
@@ -139,14 +128,6 @@ export default function App() {
     const handleFullscreenChange = () => setIsFullscreen(!!document.fullscreenElement);
     document.addEventListener('fullscreenchange', handleFullscreenChange);
     return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
-  }, []);
-
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (historyMenuRef.current && !historyMenuRef.current.contains(e.target as Node)) setIsHistoryOpen(false);
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   const handleTopicSubmit = async (inputTopic: string, contextContent?: string) => {
@@ -262,18 +243,15 @@ export default function App() {
             try { await new Promise(r => setTimeout(r, 4000)); content = await generateEbookTopicContent(topicItem.title, chapter.title, structure.title, language); break; } 
             catch (e) { retries++; await new Promise(r => setTimeout(r, 10000)); }
           }
-          
           let cursorY = 30;
           doc.setFont("helvetica", "bold"); doc.setFontSize(22); doc.setTextColor(30, 41, 59);
           const chLines = doc.splitTextToSize(chapter.title, width);
           doc.text(chLines, margin, cursorY);
           cursorY += (chLines.length * 9) + 10;
-          
-          doc.setFontSize(16); doc.setTextColor(79, 70, 229);
+          doc.setFontSize(16); doc.setTextColor(249, 115, 22);
           const tpLines = doc.splitTextToSize(topicItem.title, width);
           doc.text(tpLines, margin, cursorY);
           cursorY += (tpLines.length * 8) + 15;
-          
           doc.setFont("helvetica", "normal"); doc.setFontSize(12); doc.setTextColor(51, 65, 85);
           const lines = (content || "").split('\n');
           for (let l of lines) {
@@ -314,15 +292,14 @@ export default function App() {
   return (
     <div className="h-screen bg-slate-50 dark:bg-slate-950 flex flex-col font-sans text-slate-800 dark:text-slate-100 overflow-hidden transition-colors duration-300">
       <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} onDownloadBackup={handleExportHistory} t={t} />
-      
       <header className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 shrink-0 h-16 z-50 shadow-sm flex items-center justify-between px-4">
         <div className="flex items-center gap-2">
           <button className="md:hidden p-2 text-slate-500" onClick={() => setShowMobileSidebar(!showMobileSidebar)}><Menu size={20} /></button>
           <div className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity" onClick={handleRestart}>
-            <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white shadow-lg shadow-indigo-500/20"><BrainCircuit size={20} /></div>
-            <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-violet-600 hidden sm:block">CursoAPP</h1>
+            <div className="w-8 h-8 bg-orange-600 rounded-lg flex items-center justify-center text-white shadow-lg shadow-orange-500/20"><BrainCircuit size={20} /></div>
+            <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-orange-600 to-amber-600 hidden sm:block">CursoAPP</h1>
           </div>
-          <button onClick={toggleFullscreen} className="p-2 text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-xl transition-all">
+          <button onClick={toggleFullscreen} className="p-2 text-slate-400 hover:text-orange-600 dark:hover:text-orange-400 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-xl transition-all">
             {isFullscreen ? <Minimize size={20} /> : <Maximize size={20} />}
           </button>
         </div>
@@ -331,10 +308,10 @@ export default function App() {
           <div className="flex flex-1 max-w-md mx-6">
             <div className="relative w-full group">
               <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                <Search size={16} className="text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
+                <Search size={16} className="text-slate-400 group-focus-within:text-orange-500 transition-colors" />
               </div>
-              <input type="text" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="Búsqueda..." className="w-full pl-11 pr-4 py-2.5 bg-slate-100 dark:bg-slate-800 border-none rounded-2xl text-sm focus:ring-2 focus:ring-indigo-500 transition-all" />
-              {searchTerm && <button onClick={() => setSearchTerm('')} className="absolute inset-y-0 right-0 pr-4 flex items-center"><X size={14} className="text-slate-400 hover:text-indigo-500" /></button>}
+              <input type="text" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="Búsqueda..." className="w-full pl-11 pr-4 py-2.5 bg-slate-100 dark:bg-slate-800 border-none rounded-2xl text-sm focus:ring-2 focus:ring-orange-500 transition-all" />
+              {searchTerm && <button onClick={() => setSearchTerm('')} className="absolute inset-y-0 right-0 pr-4 flex items-center"><X size={14} className="text-slate-400 hover:text-orange-500" /></button>}
             </div>
           </div>
         )}
@@ -342,11 +319,11 @@ export default function App() {
         <div className="flex items-center gap-3">
           {(step !== 'INPUT' || pillars.length > 0) && (
             <nav className="hidden lg:flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-slate-400 bg-slate-50 dark:bg-slate-800/50 px-4 py-2 rounded-full border border-slate-200 dark:border-slate-700 mr-2">
-              <button onClick={() => setStep('INPUT')} className={`px-2 py-1 rounded transition-all ${step === 'INPUT' ? 'text-indigo-600 bg-white dark:bg-slate-700 shadow-sm scale-110' : 'hover:text-slate-600'}`}>{t.steps.input}</button>
+              <button onClick={() => setStep('INPUT')} className={`px-2 py-1 rounded transition-all ${step === 'INPUT' ? 'text-orange-600 bg-white dark:bg-slate-700 shadow-sm scale-110' : 'hover:text-slate-600'}`}>{t.steps.input}</button>
               <ChevronRight size={10} className="text-slate-300" />
-              <button onClick={() => setStep('PILLARS')} className={`px-2 py-1 rounded transition-all ${step === 'PILLARS' ? 'text-indigo-600 bg-white dark:bg-slate-700 shadow-sm scale-110' : 'hover:text-slate-600'}`}>{t.steps.pillars}</button>
-              {variations.length > 0 && <><ChevronRight size={10} /><button onClick={() => setStep('VARIATIONS')} className={`px-2 py-1 rounded ${step === 'VARIATIONS' ? 'text-indigo-600 bg-white dark:bg-slate-700 shadow-sm scale-110' : ''}`}>{t.steps.variations}</button></>}
-              {course && <><ChevronRight size={10} /><button onClick={() => setStep('COURSE')} className={`px-2 py-1 rounded ${step === 'COURSE' ? 'text-indigo-600 bg-white dark:bg-slate-700 shadow-sm scale-110' : ''}`}>{t.steps.course}</button></>}
+              <button onClick={() => setStep('PILLARS')} className={`px-2 py-1 rounded transition-all ${step === 'PILLARS' ? 'text-orange-600 bg-white dark:bg-slate-700 shadow-sm scale-110' : 'hover:text-slate-600'}`}>{t.steps.pillars}</button>
+              {variations.length > 0 && <><ChevronRight size={10} /><button onClick={() => setStep('VARIATIONS')} className={`px-2 py-1 rounded ${step === 'VARIATIONS' ? 'text-orange-600 bg-white dark:bg-slate-700 shadow-sm scale-110' : ''}`}>{t.steps.variations}</button></>}
+              {course && <><ChevronRight size={10} /><button onClick={() => setStep('COURSE')} className={`px-2 py-1 rounded ${step === 'COURSE' ? 'text-orange-600 bg-white dark:bg-slate-700 shadow-sm scale-110' : ''}`}>{t.steps.course}</button></>}
             </nav>
           )}
 
@@ -371,7 +348,7 @@ export default function App() {
                     <div className="divide-y divide-slate-100 dark:divide-slate-700">
                       {savedCourses.map(saved => (
                         <div key={saved.id} onClick={() => handleLoadHistory(saved)} className="p-4 hover:bg-slate-50 dark:hover:bg-slate-700/50 cursor-pointer group relative">
-                          <p className="text-sm font-bold text-slate-900 dark:text-slate-100 whitespace-normal leading-tight pr-8">{saved.topic}</p>
+                          <p className="text-sm font-bold text-slate-900 dark:text-white whitespace-normal leading-tight pr-8">{saved.topic}</p>
                           <div className="flex justify-between items-center mt-1">
                             <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">{new Date(saved.lastUpdated).toLocaleDateString()}</span>
                           </div>
@@ -387,7 +364,6 @@ export default function App() {
           <button onClick={() => setIsSettingsOpen(true)} className="p-2.5 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors"><Settings size={20} /></button>
         </div>
       </header>
-
       <div className="flex flex-1 overflow-hidden relative">
         <main className="flex-1 overflow-y-auto bg-slate-50 dark:bg-slate-900 w-full">
           <div className="max-w-7xl mx-auto px-4 py-8 min-h-full">
@@ -396,8 +372,8 @@ export default function App() {
                 <LoadingScreen message={loadingMessage} />
                 {ebookProgress && (
                   <div className="w-full max-w-xl space-y-8 animate-fade-in p-10 bg-white dark:bg-slate-800 rounded-[3rem] shadow-2xl">
-                    <div className="flex justify-between items-end"><div><span className="text-[10px] font-black uppercase text-indigo-500">{ebookProgress.msg}</span><p className="text-xl font-black truncate max-w-sm">{ebookProgress.sub}</p></div><span className="text-3xl font-black text-indigo-600">{ebookProgress.current}%</span></div>
-                    <div className="h-4 bg-slate-100 rounded-full overflow-hidden p-1 shadow-inner"><div className="h-full bg-gradient-to-r from-indigo-500 to-violet-500 rounded-full transition-all duration-1000" style={{ width: `${ebookProgress.current}%` }}></div></div>
+                    <div className="flex justify-between items-end"><div><span className="text-[10px] font-black uppercase text-orange-500">{ebookProgress.msg}</span><p className="text-xl font-black truncate max-w-sm">{ebookProgress.sub}</p></div><span className="text-3xl font-black text-orange-600">{ebookProgress.current}%</span></div>
+                    <div className="h-4 bg-slate-100 rounded-full overflow-hidden p-1 shadow-inner"><div className="h-full bg-gradient-to-r from-orange-500 to-amber-500 rounded-full transition-all duration-1000" style={{ width: `${ebookProgress.current}%` }}></div></div>
                   </div>
                 )}
               </div>

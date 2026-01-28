@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Loader2 } from 'lucide-react';
 
@@ -9,15 +10,15 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({ message }) => {
   return (
     <div className="flex flex-col items-center justify-center min-h-[50vh] animate-fade-in space-y-6">
       <div className="relative">
-        <div className="absolute inset-0 bg-indigo-500 blur-xl opacity-20 rounded-full animate-pulse"></div>
-        <Loader2 size={48} className="text-indigo-600 animate-spin relative z-10" />
+        <div className="absolute inset-0 bg-orange-500 blur-xl opacity-20 rounded-full animate-pulse"></div>
+        <Loader2 size={48} className="text-orange-600 animate-spin relative z-10" />
       </div>
-      <div className="text-center space-y-2 max-w-md">
-        <p className="text-xl font-medium text-slate-800 animate-pulse">
+      <div className="text-center space-y-2 max-w-md px-4">
+        <p className="text-xl font-bold text-slate-800 dark:text-slate-100 animate-pulse leading-tight">
           {message.split('\n')[0]}
         </p>
         {message.includes('\n') && (
-           <p className="text-sm text-slate-500">
+           <p className="text-sm text-slate-500 dark:text-slate-400 font-medium">
              {message.split('\n')[1]}
            </p>
         )}

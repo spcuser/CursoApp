@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Pillar, Variation, CourseDepth, TranslationDictionary } from '../types';
 import { BookOpen, ArrowLeft, BarChart, Clock, Users, ArrowRight, Zap, Layers, Book } from 'lucide-react';
 
@@ -55,7 +55,6 @@ export const VariationSelection: React.FC<VariationSelectionProps> = ({ pillar, 
           {t.variations.subtitle} <span className="font-semibold text-slate-900 dark:text-slate-200">"{pillar.title}"</span>
         </p>
 
-        {/* Depth Selector */}
         <div className="bg-white dark:bg-slate-800 p-1 inline-flex rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm mt-4">
           <button
             onClick={() => setDepth('express')}
@@ -137,4 +136,3 @@ export const VariationSelection: React.FC<VariationSelectionProps> = ({ pillar, 
     </div>
   );
 };
-import { useState } from 'react';

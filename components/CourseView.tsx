@@ -17,11 +17,9 @@ interface CourseViewProps {
   language: string;
 }
 
-const highlightText = (text: string, searchTerms?: string[], searchTerm?: string, onRemoveHighlight?: (text: string) => void) => {
-  if ((!searchTerm || searchTerm.length < 2) && (!searchTerms || searchTerms.length === 0)) return text;
-  
+const highlightText = (text: string, searchTerms: string[] = [], searchTerm?: string, onRemoveHighlight?: (text: string) => void) => {
   const allTerms = [
-    ...(searchTerm ? [searchTerm] : []),
+    ...(searchTerm && searchTerm.length >= 2 ? [searchTerm] : []),
     ...(searchTerms || [])
   ].filter(t => t.trim().length >= 2);
 
@@ -46,13 +44,18 @@ const highlightText = (text: string, searchTerms?: string[], searchTerm?: string
         return (
           <mark 
             key={i} 
-            onClick={() => !isSearchTerm && onRemoveHighlight?.(part)}
-            title={isSearchTerm ? undefined : "Haz clic para eliminar este resaltado"}
+            onClick={(e) => {
+              if (!isSearchTerm && onRemoveHighlight) {
+                e.stopPropagation();
+                onRemoveHighlight(part);
+              }
+            }}
+            title={isSearchTerm ? undefined : "Clic para eliminar resaltado"}
             className={`
               rounded-[2px] px-[2px] mx-[-1px] font-medium transition-all
               ${isSearchTerm 
                 ? 'bg-yellow-200/80 dark:bg-yellow-500/50 text-yellow-900 dark:text-yellow-100 border-b border-yellow-400' 
-                : 'bg-yellow-100/60 dark:bg-yellow-600/30 text-slate-800 dark:text-slate-100 border-b border-yellow-300/50 cursor-pointer hover:bg-red-100 dark:hover:bg-red-900/40 hover:text-red-700 dark:hover:text-red-200 hover:border-red-400'}
+                : 'bg-yellow-100/60 dark:bg-yellow-600/30 text-slate-800 dark:text-slate-100 border-b border-yellow-300/50 cursor-pointer hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-600 hover:border-red-300'}
             `}
           >
             {part}
@@ -172,9 +175,10 @@ export const CourseView: React.FC<CourseViewProps> = ({
     const range = selection.getRangeAt(0);
     const rect = range.getBoundingClientRect();
     
+    // Al usar 'fixed', rect.top es relativo al viewport.
     setFloatingMenu({
       x: rect.left + (rect.width / 2),
-      y: rect.top - 45 + window.scrollY,
+      y: rect.top - 45,
       text: selection.toString().trim()
     });
   };
@@ -217,7 +221,7 @@ export const CourseView: React.FC<CourseViewProps> = ({
     const width = pageWidth - (margin * 2);
     let y = 30;
 
-    const clean = (txt: string) => (txt || "").replace(/#{1,6}\s?/g, '').replace(/\*\*/g, '').replace(/\*\*/g, '').replace(/__/g, '').replace(/`/g, '').trim();
+    const clean = (txt: string) => (txt || "").replace(/#{1,6}\s?/g, '').replace(/\*\*/g, '').replace(/__/g, '').replace(/`/g, '').trim();
 
     doc.setFont("helvetica", "bold"); doc.setFontSize(24);
     const titleLines = doc.splitTextToSize(course.title, width);
@@ -245,14 +249,17 @@ export const CourseView: React.FC<CourseViewProps> = ({
 
   return (
     <div className="flex flex-col h-full animate-fade-in space-y-6 relative">
-      {/* Floating Marker Tooltip */}
+      {/* Marcador Flotante - Corregido con onMouseDown y preventDefault */}
       {floatingMenu && (
         <div 
           className="fixed z-[100] transform -translate-x-1/2 animate-fade-in-up"
           style={{ left: floatingMenu.x, top: floatingMenu.y }}
         >
           <button 
-            onMouseDown={(e) => { e.preventDefault(); addHighlight(); }}
+            onMouseDown={(e) => { 
+              e.preventDefault(); // Mantiene la selección activa para capturar el texto
+              addHighlight(); 
+            }}
             className="flex items-center gap-2 bg-slate-900 dark:bg-slate-950 text-white px-5 py-3 rounded-full shadow-2xl hover:bg-indigo-600 transition-all text-[11px] font-black uppercase tracking-widest border border-white/20 active:scale-95"
           >
             <Highlighter size={16} className="text-yellow-400 fill-current" />
@@ -264,8 +271,8 @@ export const CourseView: React.FC<CourseViewProps> = ({
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 pb-8 border-b border-slate-200 dark:border-slate-800">
         <div className="space-y-1">
           <button onClick={onBack} className="flex items-center gap-1.5 text-slate-500 hover:text-indigo-600 mb-3 text-sm font-medium"><ArrowLeft size={16} /><span>{t.course.back}</span></button>
-          <h1 className="text-3xl md:text-4xl font-extrabold text-slate-900 dark:text-white tracking-tight leading-none mb-1">{highlightText(course.title, moduleHighlights, searchTerm, removeHighlight)}</h1>
-          <p className="text-slate-500 dark:text-slate-400 text-lg font-medium">{highlightText(course.subtitle, moduleHighlights, searchTerm, removeHighlight)}</p>
+          <h1 className="text-3xl md:text-4xl font-extrabold text-slate-900 dark:text-white tracking-tight leading-none mb-1">{course.title}</h1>
+          <p className="text-slate-500 dark:text-slate-400 text-lg font-medium">{course.subtitle}</p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <button onClick={onGenerateEbook} className="flex items-center gap-2.5 px-6 py-3 bg-indigo-600 text-white rounded-2xl hover:bg-indigo-700 shadow-xl shadow-indigo-500/30 transition-all font-black text-xs uppercase tracking-wider"><BookOpen size={20} className="stroke-[2.5]" /><span>{t.ebook.generate}</span></button>
@@ -285,12 +292,12 @@ export const CourseView: React.FC<CourseViewProps> = ({
                 </button>
               ))}
               <div className="grid grid-cols-2 gap-3 mt-6">
-                <button onClick={() => setViewMode('glossary')} className={`flex flex-col items-center justify-center gap-3 p-5 rounded-3xl transition-all border shadow-sm min-h-[140px] text-center ${viewMode === 'glossary' ? `bg-${color}-600 border-${color}-500 text-white` : 'bg-slate-100/50 dark:bg-slate-800 border-slate-200 dark:border-slate-700'}`}>
-                  <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shadow-inner ${viewMode === 'glossary' ? 'bg-white/20' : 'bg-white dark:bg-slate-700 text-slate-500'}`}><Book size={24} /></div>
+                <button onClick={() => setViewMode('glossary')} className={`flex flex-col items-center justify-center gap-3 p-5 rounded-3xl transition-all border shadow-sm min-h-[140px] text-center ${viewMode === 'glossary' ? `bg-${color}-600 border-${color}-500 text-white` : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:bg-slate-50'}`}>
+                  <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shadow-inner ${viewMode === 'glossary' ? 'bg-white/20' : 'bg-slate-50 dark:bg-slate-700 text-slate-500'}`}><Book size={24} /></div>
                   <span className="text-[11px] font-black uppercase tracking-widest leading-tight px-2">{t.course.glossary}</span>
                 </button>
-                <button onClick={() => setViewMode('highlights')} className={`flex flex-col items-center justify-center gap-3 p-5 rounded-3xl transition-all border shadow-sm min-h-[140px] text-center ${viewMode === 'highlights' ? `bg-${color}-600 border-${color}-500 text-white` : 'bg-slate-100/50 dark:bg-slate-800 border-slate-200 dark:border-slate-700'}`}>
-                  <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shadow-inner ${viewMode === 'highlights' ? 'bg-white/20' : 'bg-white dark:bg-slate-700 text-slate-500'}`}><Highlighter size={24} /></div>
+                <button onClick={() => setViewMode('highlights')} className={`flex flex-col items-center justify-center gap-3 p-5 rounded-3xl transition-all border shadow-sm min-h-[140px] text-center ${viewMode === 'highlights' ? `bg-${color}-600 border-${color}-500 text-white` : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:bg-slate-50'}`}>
+                  <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shadow-inner ${viewMode === 'highlights' ? 'bg-white/20' : 'bg-slate-50 dark:bg-slate-700 text-slate-500'}`}><Highlighter size={24} /></div>
                   <span className="text-[11px] font-black uppercase tracking-widest leading-tight px-2">Mis Resaltados</span>
                 </button>
               </div>
@@ -309,8 +316,8 @@ export const CourseView: React.FC<CourseViewProps> = ({
                <div className="grid grid-cols-1 gap-6">
                 {filteredGlossary.length === 0 ? <p className="text-slate-400">{t.course.glossaryEmpty}</p> : filteredGlossary.map((item, idx) => (
                   <div key={idx} className="bg-slate-50 dark:bg-slate-900/30 p-10 rounded-[2.5rem] border border-slate-100">
-                    <h3 className={`text-2xl font-black text-${color}-700 mb-4`}>{highlightText(item.term, moduleHighlights, searchTerm, removeHighlight)}</h3>
-                    <p className="text-slate-600 dark:text-slate-300 text-lg leading-relaxed">{highlightText(item.definition, moduleHighlights, searchTerm, removeHighlight)}</p>
+                    <h3 className={`text-2xl font-black text-${color}-700 mb-4`}>{item.term}</h3>
+                    <p className="text-slate-600 dark:text-slate-300 text-lg leading-relaxed">{item.definition}</p>
                   </div>
                 ))}
                </div>
@@ -322,7 +329,7 @@ export const CourseView: React.FC<CourseViewProps> = ({
                   <span>Volver al contenido</span>
                </button>
                <h2 className="text-4xl font-black mb-12">Mis Notas Importantes</h2>
-               <p className="text-slate-500 mb-8 text-lg">Aquí aparecerán los fragmentos de texto que resaltes durante tu lectura.</p>
+               <p className="text-slate-500 mb-8 text-lg">Fragmentos resaltados. Haz clic en ellos en la lección para quitarlos.</p>
                <div className="space-y-8">
                  {Object.entries(userHighlights || {}).length === 0 ? (
                    <div className="p-20 text-center border-2 border-dashed border-slate-100 dark:border-slate-800 rounded-3xl text-slate-400">

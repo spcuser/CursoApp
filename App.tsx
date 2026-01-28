@@ -79,22 +79,21 @@ export default function App() {
   const isInitialLoad = useRef(true);
   const t = TRANSLATIONS[language] || TRANSLATIONS['Español'];
 
-  // --- PERSISTENCE LOGIC ---
+  // --- PERSISTENCE LOGIC (FIXED) ---
   
-  // 1. Initial Load from LocalStorage
+  // 1. Initial Load
   useEffect(() => {
     const stored = localStorage.getItem('cursoapp_history');
     if (stored) {
       try {
         const parsed = JSON.parse(stored);
         if (Array.isArray(parsed)) setSavedCourses(parsed);
-      } catch (e) { console.error("History parse fail", e); }
+      } catch (e) { console.error("History load error", e); }
     }
     isInitialLoad.current = false;
   }, []);
 
-  // 2. Declarative Auto-Save
-  // This effect synchronizes the current working session into the savedCourses list
+  // 2. Safe Auto-Save Effect
   useEffect(() => {
     if (isInitialLoad.current || !currentSessionId || !topic) return;
 
@@ -150,18 +149,6 @@ export default function App() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const filteredPillars = useMemo(() => {
-    if (!searchTerm.trim()) return pillars;
-    const s = searchTerm.toLowerCase();
-    return pillars.filter(p => p.title.toLowerCase().includes(s) || p.description.toLowerCase().includes(s));
-  }, [pillars, searchTerm]);
-
-  const filteredVariations = useMemo(() => {
-    if (!searchTerm.trim()) return variations;
-    const s = searchTerm.toLowerCase();
-    return variations.filter(v => v.title.toLowerCase().includes(s) || v.description.toLowerCase().includes(s));
-  }, [variations, searchTerm]);
-
   const handleTopicSubmit = async (inputTopic: string, contextContent?: string) => {
     setTopic(inputTopic); setLoading(true); setLoadingMessage(t.loading.analyzing);
     setCurrentSessionId(crypto.randomUUID()); setPillars([]); setVariations([]); setCourse(null);
@@ -188,10 +175,7 @@ export default function App() {
   };
 
   const handleLoadHistory = (saved: SavedCourse) => {
-    // Prevent auto-save from triggering during state reset by pausing updates
     setCurrentSessionId(null);
-    
-    // Set all states from saved data
     setTopic(saved.topic);
     setPillars(saved.pillars || []);
     setRelatedTopics(saved.relatedTopics || []);
@@ -203,10 +187,7 @@ export default function App() {
     setCurrentDepth(saved.depth || 'standard');
     setCompletedModuleIds(saved.completedModuleIds || []);
     setUserHighlights(saved.userHighlights || {});
-    
-    // Resume auto-save with the correct ID
-    setTimeout(() => setCurrentSessionId(saved.id), 0);
-    
+    setTimeout(() => setCurrentSessionId(saved.id), 10);
     setIsHistoryOpen(false);
     setSearchTerm('');
   };
@@ -218,11 +199,8 @@ export default function App() {
   };
 
   const toggleFullscreen = () => {
-    if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen().catch(err => console.error(err));
-    } else {
-      document.exitFullscreen();
-    }
+    if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(e => console.error(e));
+    else document.exitFullscreen();
   };
 
   const handleExportHistory = () => {
@@ -245,9 +223,9 @@ export default function App() {
         if (Array.isArray(parsed)) {
           setSavedCourses(parsed);
           localStorage.setItem('cursoapp_history', JSON.stringify(parsed));
-          alert('Historial importado con éxito.');
+          alert('Historial importado.');
         }
-      } catch (err) { alert('Archivo JSON inválido.'); }
+      } catch (err) { alert('Archivo inválido.'); }
     };
     reader.readAsText(file);
   };
@@ -256,7 +234,6 @@ export default function App() {
     if (!course) return;
     setLoading(true);
     setEbookProgress({ current: 0, total: 100, msg: t.ebook.generatingIndex, sub: '' });
-    
     try {
       const structure = await generateEbookIndex(course, language);
       const totalTopics = structure.chapters.reduce((acc, c) => acc + (c.topics?.length || 0), 0);
@@ -268,7 +245,6 @@ export default function App() {
       const width = pageWidth - (margin * 2);
       const bottomLimit = pageHeight - 25;
 
-      // Portada
       doc.setFillColor(15, 23, 42); doc.rect(0, 0, pageWidth, pageHeight, 'F');
       doc.setTextColor(255, 255, 255); doc.setFont("helvetica", "bold"); doc.setFontSize(36);
       const portLines = doc.splitTextToSize(structure.title, 160);
@@ -313,17 +289,27 @@ export default function App() {
           doc.addPage();
         }
       }
-
       const totalPages = doc.internal.pages.length - 1;
       for (let i = 1; i <= totalPages; i++) {
         doc.setPage(i); doc.setFontSize(8); doc.setTextColor(150);
         doc.text(`${i} / ${totalPages}`, pageWidth / 2, pageHeight - 12.5, { align: 'center' });
       }
-
       setEbookProgress({ current: 100, total: 100, msg: t.ebook.preparingFile, sub: '¡Finalizado!' });
       doc.save(`${structure.title.replace(/\s+/g, '_')}_Master.pdf`);
-    } catch (e) { alert("Error generating ebook."); } finally { setLoading(false); setEbookProgress(null); }
+    } catch (e) { alert("Error"); } finally { setLoading(false); setEbookProgress(null); }
   };
+
+  const filteredPillars = useMemo(() => {
+    if (!searchTerm.trim()) return pillars;
+    const s = searchTerm.toLowerCase();
+    return pillars.filter(p => p.title.toLowerCase().includes(s) || p.description.toLowerCase().includes(s));
+  }, [pillars, searchTerm]);
+
+  const filteredVariations = useMemo(() => {
+    if (!searchTerm.trim()) return variations;
+    const s = searchTerm.toLowerCase();
+    return variations.filter(v => v.title.toLowerCase().includes(s) || v.description.toLowerCase().includes(s));
+  }, [variations, searchTerm]);
 
   return (
     <div className="h-screen bg-slate-50 dark:bg-slate-950 flex flex-col font-sans text-slate-800 dark:text-slate-100 overflow-hidden transition-colors duration-300">
@@ -347,13 +333,7 @@ export default function App() {
               <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                 <Search size={16} className="text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
               </div>
-              <input 
-                type="text" 
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Búsqueda rápida..." 
-                className="w-full pl-11 pr-4 py-2.5 bg-slate-100 dark:bg-slate-800 border-none rounded-2xl text-sm focus:ring-2 focus:ring-indigo-500 transition-all placeholder:text-slate-500"
-              />
+              <input type="text" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="Búsqueda..." className="w-full pl-11 pr-4 py-2.5 bg-slate-100 dark:bg-slate-800 border-none rounded-2xl text-sm focus:ring-2 focus:ring-indigo-500 transition-all" />
               {searchTerm && <button onClick={() => setSearchTerm('')} className="absolute inset-y-0 right-0 pr-4 flex items-center"><X size={14} className="text-slate-400 hover:text-indigo-500" /></button>}
             </div>
           </div>
@@ -381,8 +361,8 @@ export default function App() {
                 <div className="p-4 bg-slate-50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center">
                   <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{t.sidebar.history}</span>
                   <div className="flex gap-2">
-                    <button onClick={handleExportHistory} title="Exportar Backup" className="p-2 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg text-indigo-600 transition-colors"><Download size={14} /></button>
-                    <button onClick={() => fileInputRef.current?.click()} title="Importar Backup" className="p-2 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg text-indigo-600 transition-colors"><Upload size={14} /></button>
+                    <button onClick={handleExportHistory} title="Exportar Backup" className="p-2 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-lg text-orange-600 transition-colors"><Download size={18} /></button>
+                    <button onClick={() => fileInputRef.current?.click()} title="Importar Backup" className="p-2 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-lg text-orange-600 transition-colors"><Upload size={18} /></button>
                     <input type="file" ref={fileInputRef} className="hidden" accept=".json" onChange={handleImportHistory} />
                   </div>
                 </div>
@@ -391,7 +371,7 @@ export default function App() {
                     <div className="divide-y divide-slate-100 dark:divide-slate-700">
                       {savedCourses.map(saved => (
                         <div key={saved.id} onClick={() => handleLoadHistory(saved)} className="p-4 hover:bg-slate-50 dark:hover:bg-slate-700/50 cursor-pointer group relative">
-                          <p className="text-sm font-bold text-slate-900 dark:text-slate-100 truncate pr-8">{saved.topic}</p>
+                          <p className="text-sm font-bold text-slate-900 dark:text-slate-100 whitespace-normal leading-tight pr-8">{saved.topic}</p>
                           <div className="flex justify-between items-center mt-1">
                             <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">{new Date(saved.lastUpdated).toLocaleDateString()}</span>
                           </div>

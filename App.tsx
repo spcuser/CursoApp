@@ -1,5 +1,5 @@
 
-import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { 
   Pillar, 
   Variation, 
@@ -7,15 +7,12 @@ import {
   AppStep,
   CourseDepth,
   SavedCourse,
-  TranslationDictionary,
-  EbookStructure
+  TranslationDictionary
 } from './types';
 import { 
   generatePillars, 
   generateVariations, 
-  generateCourse,
-  generateEbookIndex,
-  generateEbookTopicContent
+  generateCourse
 } from './services/geminiService';
 import { TopicInput } from './components/TopicInput';
 import { PillarSelection } from './components/PillarSelection';
@@ -25,23 +22,20 @@ import { LoadingScreen } from './components/LoadingScreen';
 import { SettingsModal } from './components/SettingsModal';
 import { Sidebar } from './components/Sidebar';
 import { 
-  BrainCircuit, ChevronRight, FolderOpen, Download, Upload, 
-  Trash2, ChevronDown, Settings, Menu, Moon, Sun, 
-  Search, X, BookOpen, Loader2, Maximize, Minimize
+  BrainCircuit, ChevronDown, Settings, Sun, Moon, Search, X, History, Trash2, Clock, Folder, FileText, ChevronRight, Upload, Download, Maximize, Minimize
 } from 'lucide-react';
-import { jsPDF } from "jspdf";
 
 const TRANSLATIONS: Record<string, TranslationDictionary> = {
   'Español': {
-    input: { title: '¿De qué quieres hablar hoy?', subtitle: 'Dime un tema y construiré una estrategia completa.', placeholder: 'Ej. Marketing Digital, Cocina Vegana...', button: 'Crear Estrategia', suggestions: 'Prueba con:' },
-    steps: { step1: 'Paso 1 de 3', step2: 'Paso 2 de 3', step3: 'Paso 3 de 3', input: 'Inicio', pillars: 'Pilares', variations: 'Ideas', course: 'Curso' },
-    pillars: { title: 'Pilares Fundamentales', subtitle: 'He detectado estos grandes pilares para tu tema.', relatedTitle: 'Te podría interesar...', relatedSubtitle: 'Otras estrategias relacionadas:', downloadPartial: 'Descarga detenida.', downloadComplete: 'Descargar Estrategia', generating: 'Generando...' },
-    variations: { title: 'Variaciones de Lecciones', subtitle: 'He diseñado estas ideas de cursos.', back: 'Volver a Pilares', depth: { express: 'Express', standard: 'Estándar', deep: 'Profundo', expressDesc: 'Lecciones breves (~200 palabras).', standardDesc: 'Lecciones equilibradas (~500 palabras).', deepDesc: 'Lecciones detalladas (~1000 palabras).' } },
-    course: { back: 'Volver a Ideas', download: 'Descargar PDF', tableOfContents: 'Tabla de Contenidos', keyTakeaway: 'Lo más importante', quizTitle: 'Comprueba tu conocimiento', quizQuestion: 'Pregunta', checkAnswer: 'Comprobar', correct: '¡Correcto!', incorrect: 'Incorrecto.', nextQuestion: 'Siguiente', viewResults: 'Ver Resultados', moduleCompleted: '¡Módulo Completado!', retry: 'Repetir Test', score: 'Aciertos', glossary: 'Glosario', glossaryTitle: 'Términos Clave', glossaryEmpty: 'No hay términos en el glosario.', markAsCompleted: 'Marcar como completado', completed: 'Completado' },
-    ebook: { generate: 'Descargar Ebook PDF', generatingIndex: 'Planificando 10 capítulos...', generatingContent: 'Escribiendo tema profundo...', preparingFile: 'Ensamblando PDF final...', success: '¡eBook generado con éxito!', warning: 'Generación extensa detectada. Si el servidor se satura, el proceso pausará 10s para reintentar. Se recomienda usar clave API propia en Configuración.' },
-    sidebar: { explorer: 'Explorador', newStrategy: 'Nueva Estrategia', loading: 'Cargando...', courseContent: 'Contenido', myStrategies: 'Mis Estrategias', history: 'Historial', emptyHistory: 'No hay estrategias guardadas.' },
-    settings: { title: 'Configuración', secureData: 'Datos Seguros', secureDesc: 'Tu historial se guarda en este dispositivo.', backup: 'Copia de Seguridad', backupBtn: 'Descargar Historial', backupDesc: 'Descarga una copia para no perder tus datos.' },
-    loading: { analyzing: 'Analizando tendencias...', designing: 'Diseñando variaciones...', building: 'Construyendo el curso...', translating: 'Traduciendo contenido...' }
+    input: { title: '¿De qué quieres hablar hoy?', subtitle: 'Dime un tema y construiré una estrategia completa.', placeholder: 'Ej. Marketing Digital...', button: 'Crear Estrategia', suggestions: 'Prueba con:' },
+    steps: { step1: 'Paso 1', step2: 'Paso 2', step3: 'Paso 3', input: 'Inicio', pillars: 'Pilares', variations: 'Ideas', course: 'Curso' },
+    pillars: { title: 'Pilares Fundamentales', subtitle: 'He detectado estos pilares para:', relatedTitle: 'Te podría interesar...', relatedSubtitle: 'Otras estrategias:', downloadPartial: 'Descarga detenida.', downloadComplete: 'Descargar', generating: 'Generando...' },
+    variations: { title: 'Variaciones de Lecciones', subtitle: 'Ideas para:', back: 'Volver', depth: { express: 'Express', standard: 'Estándar', deep: 'Profundo', expressDesc: 'Breve.', standardDesc: 'Equilibrada.', deepDesc: 'Detallada.' } },
+    course: { back: 'Volver', download: 'Descargar PDF', tableOfContents: 'Índice', keyTakeaway: 'LO MÁS IMPORTANTE', quizTitle: 'Cuestionario', quizQuestion: 'Pregunta', checkAnswer: 'Comprobar', correct: '¡Correcto!', incorrect: 'Incorrecto.', nextQuestion: 'Siguiente', viewResults: 'Resultados', moduleCompleted: '¡Completado!', retry: 'Repetir', score: 'Aciertos', glossary: 'Glosario', glossaryTitle: 'Glosario', glossaryEmpty: 'Vacío', markAsCompleted: 'Completado', completed: 'Completado' },
+    ebook: { generate: 'Descargar Ebook', generatingIndex: 'Planificando...', generatingContent: 'Escribiendo...', preparingFile: 'Finalizando...', success: '¡Éxito!', warning: 'Generación extensa.' },
+    sidebar: { explorer: 'EXPLORADOR', newStrategy: 'NUEVA', loading: 'Cargando...', courseContent: 'CONTENIDO', myStrategies: 'MIS ESTRATEGIAS', history: 'HISTORIAL', emptyHistory: 'Vacío' },
+    settings: { title: 'Ajustes', secureData: 'Secure', secureDesc: 'Historial local.', backup: 'Copia', backupBtn: 'Exportar', backupDesc: 'Copia de seguridad.' },
+    loading: { analyzing: 'Analizando...', designing: 'Diseñando...', building: 'Construyendo...', translating: 'Traduciendo...' }
   }
 };
 
@@ -50,16 +44,11 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
-  const [ebookProgress, setEbookProgress] = useState<{current: number, total: number, msg: string, sub: string} | null>(null);
+  const [darkMode, setDarkMode] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [darkMode, setDarkMode] = useState(() => {
-    if (typeof window !== 'undefined') return localStorage.getItem('theme') === 'dark' || (!localStorage.getItem('theme') && window.matchMedia('(prefers-color-scheme: dark)').matches);
-    return false;
-  });
-
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [topic, setTopic] = useState('');
-  const [language, setLanguage] = useState('Español');
+  const [language] = useState('Español');
   const [pillars, setPillars] = useState<Pillar[]>([]);
   const [relatedTopics, setRelatedTopics] = useState<string[]>([]);
   const [selectedPillar, setSelectedPillar] = useState<Pillar | null>(null);
@@ -70,71 +59,114 @@ export default function App() {
   const [completedModuleIds, setCompletedModuleIds] = useState<string[]>([]);
   const [userHighlights, setUserHighlights] = useState<Record<string, string[]>>({});
   const [savedCourses, setSavedCourses] = useState<SavedCourse[]>([]);
-  const [showMobileSidebar, setShowMobileSidebar] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const fileImportRef = useRef<HTMLInputElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
-  const historyMenuRef = useRef<HTMLDivElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const isInitialLoad = useRef(true);
-  const t = TRANSLATIONS[language] || TRANSLATIONS['Español'];
+  const t = TRANSLATIONS[language];
 
   useEffect(() => {
     const stored = localStorage.getItem('cursoapp_history');
     if (stored) {
-      try {
-        const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed)) setSavedCourses(parsed);
-      } catch (e) { console.error("History load error", e); }
+      try { setSavedCourses(JSON.parse(stored)); } catch (e) { console.error(e); }
     }
-    isInitialLoad.current = false;
   }, []);
 
   useEffect(() => {
-    if (isInitialLoad.current || !currentSessionId || !topic) return;
-    setSavedCourses(prev => {
-      const now = Date.now();
-      const updated = [...prev];
-      const idx = updated.findIndex(c => c.id === currentSessionId);
-      const sessionData: SavedCourse = {
-        id: currentSessionId,
-        createdAt: idx >= 0 ? updated[idx].createdAt : now,
-        lastUpdated: now,
-        step,
-        topic,
-        relatedTopics,
-        pillars,
-        selectedPillar: selectedPillar || undefined,
-        variations,
-        selectedVariation: selectedVariation || undefined,
-        course: course || undefined,
-        depth: currentDepth,
-        completedModuleIds,
-        userHighlights
-      };
-      if (idx >= 0) updated[idx] = sessionData;
-      else updated.unshift(sessionData);
-      localStorage.setItem('cursoapp_history', JSON.stringify(updated));
-      return updated;
-    });
-  }, [currentSessionId, step, topic, relatedTopics, pillars, selectedPillar, variations, selectedVariation, course, currentDepth, completedModuleIds, userHighlights]);
+    if (!currentSessionId || !topic) return;
+    const sessionData: SavedCourse = {
+      id: currentSessionId, createdAt: Date.now(), lastUpdated: Date.now(),
+      step, topic, relatedTopics, pillars, selectedPillar: selectedPillar || undefined,
+      variations, selectedVariation: selectedVariation || undefined, course: course || undefined,
+      depth: currentDepth, completedModuleIds, userHighlights
+    };
+    const updated = [sessionData, ...savedCourses.filter(c => c.id !== currentSessionId)];
+    setSavedCourses(updated);
+    localStorage.setItem('cursoapp_history', JSON.stringify(updated));
+  }, [step, topic, pillars, selectedPillar, variations, selectedVariation, course, currentDepth, completedModuleIds, userHighlights]);
 
   useEffect(() => {
-    if (darkMode) document.documentElement.classList.add('dark'); else document.documentElement.classList.remove('dark');
-    localStorage.setItem('theme', darkMode ? 'dark' : 'light');
-  }, [darkMode]);
-
-  useEffect(() => {
-    const handleFullscreenChange = () => setIsFullscreen(!!document.fullscreenElement);
-    document.addEventListener('fullscreenchange', handleFullscreenChange);
-    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsHistoryOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const handleTopicSubmit = async (inputTopic: string, contextContent?: string) => {
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(() => {});
+      setIsFullscreen(true);
+    } else {
+      document.exitFullscreen().catch(() => {});
+      setIsFullscreen(false);
+    }
+  };
+
+  const handleRestart = () => { 
+    setStep('INPUT'); setTopic(''); setPillars([]); setCourse(null); setCurrentSessionId(null);
+  };
+
+  const loadSavedStrategy = (saved: SavedCourse) => {
+    setCurrentSessionId(saved.id);
+    setTopic(saved.topic);
+    setRelatedTopics(saved.relatedTopics || []);
+    setPillars(saved.pillars || []);
+    setSelectedPillar(saved.selectedPillar || null);
+    setVariations(saved.variations || []);
+    setSelectedVariation(saved.selectedVariation || null);
+    setCourse(saved.course || null);
+    setCurrentDepth(saved.depth || 'standard');
+    setCompletedModuleIds(saved.completedModuleIds || []);
+    setUserHighlights(saved.userHighlights || {});
+    setStep(saved.step);
+    setIsHistoryOpen(false);
+  };
+
+  const deleteSavedStrategy = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const updated = savedCourses.filter(c => c.id !== id);
+    setSavedCourses(updated);
+    localStorage.setItem('cursoapp_history', JSON.stringify(updated));
+  };
+
+  const handleExportHistory = () => {
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(savedCourses));
+    const downloadAnchorNode = document.createElement('a');
+    downloadAnchorNode.setAttribute("href", dataStr);
+    downloadAnchorNode.setAttribute("download", "cursoapp_estrategias.json");
+    document.body.appendChild(downloadAnchorNode);
+    downloadAnchorNode.click();
+    downloadAnchorNode.remove();
+  };
+
+  const handleImportHistory = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const imported = JSON.parse(event.target?.result as string);
+        if (Array.isArray(imported)) {
+          const merged = [...imported, ...savedCourses].filter((v, i, a) => a.findIndex(t => (t.id === v.id)) === i);
+          setSavedCourses(merged);
+          localStorage.setItem('cursoapp_history', JSON.stringify(merged));
+        }
+      } catch (err) { alert("Error al importar"); }
+    };
+    reader.readAsText(file);
+  };
+
+  const handleTopicSubmit = async (inputTopic: string) => {
     setTopic(inputTopic); setLoading(true); setLoadingMessage(t.loading.analyzing);
-    setCurrentSessionId(crypto.randomUUID()); setPillars([]); setVariations([]); setCourse(null);
+    setCurrentSessionId(crypto.randomUUID());
     try {
-      const { pillars: p, relatedTopics: rt } = await generatePillars(inputTopic, language, contextContent);
+      const { pillars: p, relatedTopics: rt } = await generatePillars(inputTopic, language);
       setPillars(p); setRelatedTopics(rt); setStep('PILLARS');
     } catch (e) { alert('Error'); } finally { setLoading(false); }
   };
@@ -155,239 +187,174 @@ export default function App() {
     } catch (e) { alert('Error'); } finally { setLoading(false); }
   };
 
-  const handleLoadHistory = (saved: SavedCourse) => {
-    setCurrentSessionId(null);
-    setTopic(saved.topic);
-    setPillars(saved.pillars || []);
-    setRelatedTopics(saved.relatedTopics || []);
-    setSelectedPillar(saved.selectedPillar || null);
-    setVariations(saved.variations || []);
-    setSelectedVariation(saved.selectedVariation || null);
-    setCourse(saved.course || null);
-    setStep(saved.step);
-    setCurrentDepth(saved.depth || 'standard');
-    setCompletedModuleIds(saved.completedModuleIds || []);
-    setUserHighlights(saved.userHighlights || {});
-    setTimeout(() => setCurrentSessionId(saved.id), 10);
-    setIsHistoryOpen(false);
-    setSearchTerm('');
-  };
-
-  const handleRestart = () => {
-    setCurrentSessionId(null); setStep('INPUT'); setTopic(''); setPillars([]); setRelatedTopics([]);
-    setSelectedPillar(null); setVariations([]); setSelectedVariation(null);
-    setCourse(null); setCompletedModuleIds([]); setUserHighlights({}); setSearchTerm('');
-  };
-
-  const toggleFullscreen = () => {
-    if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(e => console.error(e));
-    else document.exitFullscreen();
-  };
-
-  const handleExportHistory = () => {
-    const data = JSON.stringify(savedCourses, null, 2);
-    const blob = new Blob([data], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `cursoapp_backup_${new Date().toISOString().slice(0,10)}.json`;
-    link.click();
-  };
-
-  const handleImportHistory = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      try {
-        const parsed = JSON.parse(ev.target?.result as string);
-        if (Array.isArray(parsed)) {
-          setSavedCourses(parsed);
-          localStorage.setItem('cursoapp_history', JSON.stringify(parsed));
-          alert('Historial importado.');
-        }
-      } catch (err) { alert('Archivo inválido.'); }
-    };
-    reader.readAsText(file);
-  };
-
-  const handleGenerateEbook = async () => {
-    if (!course) return;
-    setLoading(true);
-    setEbookProgress({ current: 0, total: 100, msg: t.ebook.generatingIndex, sub: '' });
-    try {
-      const structure = await generateEbookIndex(course, language);
-      const totalTopics = structure.chapters.reduce((acc, c) => acc + (c.topics?.length || 0), 0);
-      let currentIdx = 0;
-      const doc = new jsPDF();
-      const margin = 20;
-      const pageWidth = doc.internal.pageSize.getWidth();
-      const pageHeight = doc.internal.pageSize.getHeight();
-      const width = pageWidth - (margin * 2);
-      const bottomLimit = pageHeight - 25;
-
-      doc.setFillColor(15, 23, 42); doc.rect(0, 0, pageWidth, pageHeight, 'F');
-      doc.setTextColor(255, 255, 255); doc.setFont("helvetica", "bold"); doc.setFontSize(36);
-      const portLines = doc.splitTextToSize(structure.title, 160);
-      doc.text(portLines, pageWidth / 2, 100, { align: 'center' });
-      doc.addPage();
-
-      for (const chapter of structure.chapters) {
-        if (!chapter.topics) continue;
-        for (const topicItem of chapter.topics) {
-          currentIdx++;
-          setEbookProgress({ current: Math.round((currentIdx/totalTopics)*100), total: 100, msg: t.ebook.generatingContent, sub: topicItem.title });
-          let content = "";
-          let retries = 0;
-          while (retries < 3) {
-            try { await new Promise(r => setTimeout(r, 4000)); content = await generateEbookTopicContent(topicItem.title, chapter.title, structure.title, language); break; } 
-            catch (e) { retries++; await new Promise(r => setTimeout(r, 10000)); }
-          }
-          let cursorY = 30;
-          doc.setFont("helvetica", "bold"); doc.setFontSize(22); doc.setTextColor(30, 41, 59);
-          const chLines = doc.splitTextToSize(chapter.title, width);
-          doc.text(chLines, margin, cursorY);
-          cursorY += (chLines.length * 9) + 10;
-          doc.setFontSize(16); doc.setTextColor(249, 115, 22);
-          const tpLines = doc.splitTextToSize(topicItem.title, width);
-          doc.text(tpLines, margin, cursorY);
-          cursorY += (tpLines.length * 8) + 15;
-          doc.setFont("helvetica", "normal"); doc.setFontSize(12); doc.setTextColor(51, 65, 85);
-          const lines = (content || "").split('\n');
-          for (let l of lines) {
-            const cleanL = l.replace(/#{1,6}\s?/g, '').replace(/\*\*/g, '').replace(/__/g, '').replace(/`/g, '').trim();
-            if (!cleanL) { cursorY += 5; continue; }
-            const paraLines = doc.splitTextToSize(cleanL, width);
-            for (const pLine of paraLines) {
-              if (cursorY > bottomLimit) { doc.addPage(); cursorY = 30; }
-              doc.text(pLine, margin, cursorY);
-              cursorY += 7;
-            }
-          }
-          doc.addPage();
-        }
-      }
-      const totalPages = doc.internal.pages.length - 1;
-      for (let i = 1; i <= totalPages; i++) {
-        doc.setPage(i); doc.setFontSize(8); doc.setTextColor(150);
-        doc.text(`${i} / ${totalPages}`, pageWidth / 2, pageHeight - 12.5, { align: 'center' });
-      }
-      setEbookProgress({ current: 100, total: 100, msg: t.ebook.preparingFile, sub: '¡Finalizado!' });
-      doc.save(`${structure.title.replace(/\s+/g, '_')}_Master.pdf`);
-    } catch (e) { alert("Error"); } finally { setLoading(false); setEbookProgress(null); }
-  };
-
-  const filteredPillars = useMemo(() => {
-    if (!searchTerm.trim()) return pillars;
-    const s = searchTerm.toLowerCase();
-    return pillars.filter(p => p.title.toLowerCase().includes(s) || p.description.toLowerCase().includes(s));
-  }, [pillars, searchTerm]);
-
-  const filteredVariations = useMemo(() => {
-    if (!searchTerm.trim()) return variations;
-    const s = searchTerm.toLowerCase();
-    return variations.filter(v => v.title.toLowerCase().includes(s) || v.description.toLowerCase().includes(s));
-  }, [variations, searchTerm]);
-
   return (
-    <div className="h-screen bg-slate-50 dark:bg-slate-950 flex flex-col font-sans text-slate-800 dark:text-slate-100 overflow-hidden transition-colors duration-300">
-      <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} onDownloadBackup={handleExportHistory} t={t} />
-      <header className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 shrink-0 h-16 z-50 shadow-sm flex items-center justify-between px-4">
-        <div className="flex items-center gap-2">
-          <button className="md:hidden p-2 text-slate-500" onClick={() => setShowMobileSidebar(!showMobileSidebar)}><Menu size={20} /></button>
-          <div className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity" onClick={handleRestart}>
-            <div className="w-8 h-8 bg-orange-600 rounded-lg flex items-center justify-center text-white shadow-lg shadow-orange-500/20"><BrainCircuit size={20} /></div>
-            <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-orange-600 to-amber-600 hidden sm:block">CursoAPP</h1>
-          </div>
-          <button onClick={toggleFullscreen} className="p-2 text-slate-400 hover:text-orange-600 dark:hover:text-orange-400 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-xl transition-all">
-            {isFullscreen ? <Minimize size={20} /> : <Maximize size={20} />}
-          </button>
-        </div>
-
-        {step !== 'INPUT' && (
-          <div className="flex flex-1 max-w-md mx-6">
-            <div className="relative w-full group">
-              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                <Search size={16} className="text-slate-400 group-focus-within:text-orange-500 transition-colors" />
-              </div>
-              <input type="text" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="Búsqueda..." className="w-full pl-11 pr-4 py-2.5 bg-slate-100 dark:bg-slate-800 border-none rounded-2xl text-sm focus:ring-2 focus:ring-orange-500 transition-all" />
-              {searchTerm && <button onClick={() => setSearchTerm('')} className="absolute inset-y-0 right-0 pr-4 flex items-center"><X size={14} className="text-slate-400 hover:text-orange-500" /></button>}
+    <div className={`h-screen flex flex-col font-sans overflow-hidden transition-colors ${darkMode ? 'bg-slate-950 text-slate-200' : 'bg-slate-50 text-slate-900'}`}>
+      <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} onDownloadBackup={() => {}} t={t} />
+      
+      <header className={`h-24 px-10 mt-10 border-b flex items-center justify-between shrink-0 z-[100] rounded-t-[2.5rem] mx-6 bg-[#444444] border-white/5 shadow-2xl shadow-black/40`}>
+        <div className="flex items-center gap-12">
+          <div className="flex items-center gap-4 cursor-pointer group" onClick={handleRestart}>
+            <div className="w-12 h-12 bg-orange-600 rounded-xl flex items-center justify-center text-white shadow-xl shadow-orange-600/30 group-hover:scale-105 transition-transform">
+              <BrainCircuit size={28} />
             </div>
+            <span className={`text-2xl font-black tracking-tighter text-white uppercase`}>CURSOAPP</span>
           </div>
-        )}
-
-        <div className="flex items-center gap-3">
-          {(step !== 'INPUT' || pillars.length > 0) && (
-            <nav className="hidden lg:flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-slate-400 bg-slate-50 dark:bg-slate-800/50 px-4 py-2 rounded-full border border-slate-200 dark:border-slate-700 mr-2">
-              <button onClick={() => setStep('INPUT')} className={`px-2 py-1 rounded transition-all ${step === 'INPUT' ? 'text-orange-600 bg-white dark:bg-slate-700 shadow-sm scale-110' : 'hover:text-slate-600'}`}>{t.steps.input}</button>
-              <ChevronRight size={10} className="text-slate-300" />
-              <button onClick={() => setStep('PILLARS')} className={`px-2 py-1 rounded transition-all ${step === 'PILLARS' ? 'text-orange-600 bg-white dark:bg-slate-700 shadow-sm scale-110' : 'hover:text-slate-600'}`}>{t.steps.pillars}</button>
-              {variations.length > 0 && <><ChevronRight size={10} /><button onClick={() => setStep('VARIATIONS')} className={`px-2 py-1 rounded ${step === 'VARIATIONS' ? 'text-orange-600 bg-white dark:bg-slate-700 shadow-sm scale-110' : ''}`}>{t.steps.variations}</button></>}
-              {course && <><ChevronRight size={10} /><button onClick={() => setStep('COURSE')} className={`px-2 py-1 rounded ${step === 'COURSE' ? 'text-orange-600 bg-white dark:bg-slate-700 shadow-sm scale-110' : ''}`}>{t.steps.course}</button></>}
-            </nav>
-          )}
-
-          <div className="relative" ref={historyMenuRef}>
-            <button onClick={() => setIsHistoryOpen(!isHistoryOpen)} className="flex items-center gap-2 px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors shadow-sm">
-              <FolderOpen size={18} />
-              <span className="hidden sm:inline text-xs font-bold uppercase tracking-widest">{t.sidebar.myStrategies}</span>
-              <ChevronDown size={14} className={`transition-transform ${isHistoryOpen ? 'rotate-180' : ''}`} />
-            </button>
-            {isHistoryOpen && (
-              <div className="absolute right-0 top-full mt-3 w-80 bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-100 dark:border-slate-700 z-50 overflow-hidden animate-fade-in-up">
-                <div className="p-4 bg-slate-50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center">
-                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{t.sidebar.history}</span>
-                  <div className="flex gap-2">
-                    <button onClick={handleExportHistory} title="Exportar Backup" className="p-2 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-lg text-orange-600 transition-colors"><Download size={18} /></button>
-                    <button onClick={() => fileInputRef.current?.click()} title="Importar Backup" className="p-2 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-lg text-orange-600 transition-colors"><Upload size={18} /></button>
-                    <input type="file" ref={fileInputRef} className="hidden" accept=".json" onChange={handleImportHistory} />
-                  </div>
-                </div>
-                <div className="max-h-[60vh] overflow-y-auto">
-                  {savedCourses.length === 0 ? <div className="p-10 text-center text-slate-400 text-sm font-medium">{t.sidebar.emptyHistory}</div> : (
-                    <div className="divide-y divide-slate-100 dark:divide-slate-700">
-                      {savedCourses.map(saved => (
-                        <div key={saved.id} onClick={() => handleLoadHistory(saved)} className="p-4 hover:bg-slate-50 dark:hover:bg-slate-700/50 cursor-pointer group relative">
-                          <p className="text-sm font-bold text-slate-900 dark:text-white whitespace-normal leading-tight pr-8">{saved.topic}</p>
-                          <div className="flex justify-between items-center mt-1">
-                            <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">{new Date(saved.lastUpdated).toLocaleDateString()}</span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
+          
+          <div className="relative w-96">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+            <input 
+              ref={searchInputRef}
+              type="text" 
+              placeholder="Búsqueda..." 
+              className={`w-full border-2 rounded-xl py-3 pl-12 pr-12 text-base font-medium focus:ring-0 focus:border-orange-500 transition-all bg-black/30 text-white placeholder:text-slate-500 border-white/10`}
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+            {/* BOTÓN X - ALTA VISIBILIDAD REFORZADO */}
+            {searchTerm && (
+              <button 
+                onClick={() => setSearchTerm('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center bg-orange-500 hover:bg-orange-600 text-white rounded-full transition-all shadow-lg active:scale-90 z-50 border-2 border-white/20"
+              >
+                <X size={16} strokeWidth={4} />
+              </button>
             )}
           </div>
-          <button onClick={() => setDarkMode(!darkMode)} className="p-2.5 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors">{darkMode ? <Sun size={20} /> : <Moon size={20} />}</button>
-          <button onClick={() => setIsSettingsOpen(true)} className="p-2.5 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors"><Settings size={20} /></button>
         </div>
-      </header>
-      <div className="flex flex-1 overflow-hidden relative">
-        <main className="flex-1 overflow-y-auto bg-slate-50 dark:bg-slate-900 w-full">
-          <div className="max-w-7xl mx-auto px-4 py-8 min-h-full">
-            {loading ? (
-              <div className="flex flex-col items-center justify-center h-full space-y-12 py-20">
-                <LoadingScreen message={loadingMessage} />
-                {ebookProgress && (
-                  <div className="w-full max-w-xl space-y-8 animate-fade-in p-10 bg-white dark:bg-slate-800 rounded-[3rem] shadow-2xl">
-                    <div className="flex justify-between items-end"><div><span className="text-[10px] font-black uppercase text-orange-500">{ebookProgress.msg}</span><p className="text-xl font-black truncate max-w-sm">{ebookProgress.sub}</p></div><span className="text-3xl font-black text-orange-600">{ebookProgress.current}%</span></div>
-                    <div className="h-4 bg-slate-100 rounded-full overflow-hidden p-1 shadow-inner"><div className="h-full bg-gradient-to-r from-orange-500 to-amber-500 rounded-full transition-all duration-1000" style={{ width: `${ebookProgress.current}%` }}></div></div>
+
+        <nav className="hidden xl:flex items-center gap-6 text-lg font-medium uppercase tracking-[0.2em] text-slate-400">
+          <button onClick={() => setStep('INPUT')} className={`transition-colors ${step === 'INPUT' ? 'text-white font-black' : 'hover:text-white'}`}>Inicio</button>
+          <span className="opacity-10 text-white">/</span>
+          <button onClick={() => setStep('PILLARS')} className={`transition-colors ${step === 'PILLARS' ? 'text-white font-black' : 'hover:text-white'}`}>Pilares</button>
+          <span className="opacity-10 text-white">/</span>
+          <button onClick={() => setStep('VARIATIONS')} className={`transition-colors ${step === 'VARIATIONS' ? 'text-white font-black' : 'hover:text-white'}`}>Ideas</button>
+          <span className="opacity-10 text-white">/</span>
+          <button onClick={() => setStep('COURSE')} className={`transition-colors ${step === 'COURSE' ? 'text-orange-500 font-black' : 'hover:text-white'}`}>Curso</button>
+        </nav>
+
+        <div className="flex items-center gap-8 relative" ref={dropdownRef}>
+          {/* BOTÓN MIS ESTRATEGIAS RESTAURADO */}
+          <button 
+            onClick={() => setIsHistoryOpen(!isHistoryOpen)}
+            className={`flex items-center gap-3 px-8 py-4 rounded-xl text-sm font-black uppercase tracking-widest transition-all bg-orange-600 text-white hover:bg-orange-700 shadow-xl shadow-orange-600/30 active:scale-95`}
+          >
+            <Folder size={20} />
+            <span>MIS ESTRATEGIAS</span>
+            <ChevronDown size={16} className={`transition-transform duration-300 ${isHistoryOpen ? 'rotate-180' : ''}`} />
+          </button>
+
+          {isHistoryOpen && (
+            <div className="absolute top-full mt-4 right-0 w-[450px] rounded-[2.5rem] shadow-[0_30px_60px_rgba(0,0,0,0.6)] border bg-slate-900 border-slate-800 overflow-hidden animate-fade-in-up z-[200]">
+              <div className="p-8 border-b border-slate-800 bg-slate-950/40">
+                <div className="flex justify-between items-center mb-6">
+                  <div className="flex items-center gap-3 text-orange-500">
+                    <History size={20} />
+                    <span className="text-xs font-black uppercase tracking-widest text-slate-400">Tus Documentos</span>
                   </div>
+                </div>
+                <div className="flex gap-4">
+                  <button onClick={handleExportHistory} className="flex-1 flex items-center justify-center gap-2 py-3 bg-slate-800 hover:bg-slate-700 text-white text-[11px] font-black uppercase rounded-xl border border-slate-700 transition-colors">
+                    <Download size={16} className="text-orange-500" />
+                    <span>Guardar PC</span>
+                  </button>
+                  <button onClick={() => fileImportRef.current?.click()} className="flex-1 flex items-center justify-center gap-2 py-3 bg-slate-800 hover:bg-slate-700 text-white text-[11px] font-black uppercase rounded-xl border border-slate-700 transition-colors">
+                    <Upload size={16} className="text-orange-500" />
+                    <span>Cargar PC</span>
+                  </button>
+                  <input type="file" ref={fileImportRef} className="hidden" accept=".json" onChange={handleImportHistory} />
+                </div>
+              </div>
+              <div className="max-h-[400px] overflow-y-auto custom-scrollbar">
+                {savedCourses.length === 0 ? (
+                  <p className="p-16 text-center text-slate-500 italic font-medium">No hay estrategias guardadas aún.</p>
+                ) : (
+                  savedCourses.map(saved => (
+                    <div key={saved.id} onClick={() => loadSavedStrategy(saved)} className="flex items-center justify-between p-7 border-b border-slate-800 hover:bg-slate-800/40 cursor-pointer group transition-all">
+                      <div className="flex items-center gap-5 min-w-0">
+                        <div className="w-12 h-12 bg-orange-600/10 text-orange-500 rounded-xl flex items-center justify-center group-hover:bg-orange-600 group-hover:text-white transition-all shadow-inner">
+                          <FileText size={24} />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-white font-black truncate leading-tight mb-1">{saved.topic}</p>
+                          <p className="text-[10px] text-slate-500 flex items-center gap-2 uppercase font-bold tracking-wider">
+                            <Clock size={12}/>{new Date(saved.createdAt).toLocaleDateString()}
+                          </p>
+                        </div>
+                      </div>
+                      <button 
+                        onClick={(e) => deleteSavedStrategy(saved.id, e)} 
+                        className="p-3 text-slate-600 hover:text-rose-500 hover:bg-rose-500/10 rounded-xl opacity-0 group-hover:opacity-100 transition-all"
+                      >
+                        <Trash2 size={18} />
+                      </button>
+                    </div>
+                  ))
                 )}
               </div>
+            </div>
+          )}
+
+          <div className="flex items-center gap-6 pl-8 border-l border-white/10">
+            {/* BOTÓN PANTALLA COMPLETA RESTAURADO */}
+            <button 
+              onClick={toggleFullscreen} 
+              className="text-slate-400 hover:text-white transition-all p-2 rounded-lg hover:bg-white/5" 
+              title="Expandir"
+            >
+              {isFullscreen ? <Minimize size={26} /> : <Maximize size={26} />}
+            </button>
+            <button onClick={() => setDarkMode(!darkMode)} className="text-slate-400 hover:text-white transition-all p-2 rounded-lg hover:bg-white/5">{darkMode ? <Sun size={26} /> : <Moon size={26} />}</button>
+            <button onClick={() => setIsSettingsOpen(true)} className="text-slate-400 hover:text-white transition-all p-2 rounded-lg hover:bg-white/5"><Settings size={26} /></button>
+          </div>
+        </div>
+      </header>
+
+      <div className="flex-1 flex overflow-hidden">
+        {/* MARGEN SUPERIOR DE 40PX (pt-10) PARA EL CONTENIDO */}
+        <main className={`flex-1 overflow-y-auto pt-10 ${darkMode ? 'bg-[#0a0f1d]' : 'bg-slate-50'}`}>
+          <div className="max-w-screen-2xl mx-auto min-h-full">
+            {loading ? (
+              <div className="flex items-center justify-center h-full"><LoadingScreen message={loadingMessage} /></div>
             ) : (
               <>
                 {step === 'INPUT' && <TopicInput onSubmit={handleTopicSubmit} t={t} />}
-                {step === 'PILLARS' && <PillarSelection topic={topic} pillars={filteredPillars} relatedTopics={relatedTopics} onSelect={handlePillarSelect} onSelectTopic={handleTopicSubmit} language={language} t={t} searchTerm={searchTerm} />}
-                {step === 'VARIATIONS' && selectedPillar && <VariationSelection pillar={selectedPillar} variations={filteredVariations} onSelect={handleVariationSelect} onBack={() => setStep('PILLARS')} t={t} searchTerm={searchTerm} />}
-                {step === 'COURSE' && course && <CourseView course={course} language={language} onBack={() => setStep('VARIATIONS')} t={t} searchTerm={searchTerm} completedModuleIds={completedModuleIds} userHighlights={userHighlights} onToggleModule={(id) => setCompletedModuleIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])} onUpdateHighlights={(id, h) => setUserHighlights(prev => ({ ...prev, [id]: h }))} onGenerateEbook={handleGenerateEbook} />}
+                {step === 'PILLARS' && <PillarSelection topic={topic} pillars={pillars} relatedTopics={relatedTopics} onSelect={handlePillarSelect} onSelectTopic={handleTopicSubmit} language={language} t={t} searchTerm={searchTerm} />}
+                {step === 'VARIATIONS' && selectedPillar && <VariationSelection pillar={selectedPillar} variations={variations} onSelect={handleVariationSelect} onBack={() => setStep('PILLARS')} t={t} searchTerm={searchTerm} />}
+                {step === 'COURSE' && course && (
+                  <CourseView 
+                    course={course} 
+                    language={language} 
+                    onBack={() => setStep('VARIATIONS')} 
+                    t={t} 
+                    searchTerm={searchTerm} 
+                    completedModuleIds={completedModuleIds} 
+                    userHighlights={userHighlights} 
+                    onToggleModule={(id) => setCompletedModuleIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])} 
+                    onUpdateHighlights={(id, h) => setUserHighlights(prev => ({ ...prev, [id]: h }))} 
+                    onGenerateEbook={() => {}} 
+                  />
+                )}
               </>
             )}
           </div>
         </main>
-        <Sidebar topic={topic} pillars={pillars} selectedPillar={selectedPillar} variations={variations} selectedVariation={selectedVariation} course={course} onSelectPillar={handlePillarSelect} onSelectVariation={(v) => handleVariationSelect(v, 'standard')} isVisible={step !== 'INPUT'} mobileOpen={showMobileSidebar} onCloseMobile={() => setShowMobileSidebar(false)} t={t} />
+        
+        {step !== 'INPUT' && (
+          <Sidebar 
+            topic={topic} 
+            pillars={pillars} 
+            selectedPillar={selectedPillar} 
+            variations={variations} 
+            selectedVariation={selectedVariation} 
+            course={course} 
+            onSelectPillar={handlePillarSelect} 
+            onSelectVariation={(v) => handleVariationSelect(v, 'standard')} 
+            isVisible={true} 
+            mobileOpen={false} 
+            onCloseMobile={() => {}} 
+            t={t} 
+          />
+        )}
       </div>
     </div>
   );

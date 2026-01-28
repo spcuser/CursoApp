@@ -199,14 +199,27 @@ export const generatePillars = async (topic: string, language: string, contextCo
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   let basePrompt = `Actúa como un mentor de clase mundial experto en: "${topic}".`;
   if (contextContent) basePrompt += `\nUsa este material como base técnica: ${contextContent.substring(0, 500000)}`;
-  basePrompt += `\nIdentifica los 10 pilares fundamentales. JSON. Idioma: ${language}.`;
+  
+  basePrompt += `
+    TAREA:
+    1. Identifica los 10 pilares fundamentales para entender este tema a fondo.
+    2. Sugiere 6 temas relacionados que sean innovadores, específicos y de gran interés para alguien que busca aprender sobre "${topic}".
+    
+    IDIOMA: ${language}.
+    FORMATO: Responde estrictamente en JSON.
+  `;
+
   const response = await ai.models.generateContent({
     model: 'gemini-3-flash-preview',
     contents: basePrompt,
     config: { responseMimeType: 'application/json', responseSchema: pillarsResponseSchema }
   });
+  
   const data = JSON.parse(response.text || '{}');
-  return { pillars: data.pillars || [], relatedTopics: data.relatedTopics || [] };
+  return { 
+    pillars: data.pillars || [], 
+    relatedTopics: data.relatedTopics || [] 
+  };
 };
 
 export const generateVariations = async (pillar: string, parentTopic: string, language: string): Promise<Variation[]> => {

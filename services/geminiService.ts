@@ -8,34 +8,6 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = `https://esm.sh/pdfjs-dist@4.0.379/buil
 
 // --- SCHEMAS ---
 
-const ebookStructureSchema: Schema = {
-  type: Type.OBJECT,
-  properties: {
-    title: { type: Type.STRING },
-    chapters: {
-      type: Type.ARRAY,
-      items: {
-        type: Type.OBJECT,
-        properties: {
-          title: { type: Type.STRING },
-          topics: {
-            type: Type.ARRAY,
-            items: {
-              type: Type.OBJECT,
-              properties: {
-                title: { type: Type.STRING }
-              },
-              required: ["title"]
-            }
-          }
-        },
-        required: ["title", "topics"]
-      }
-    }
-  },
-  required: ["title", "chapters"]
-};
-
 const pillarsResponseSchema: Schema = {
   type: Type.OBJECT,
   properties: {
@@ -87,7 +59,7 @@ const courseSchema: Schema = {
     title: { type: Type.STRING },
     subtitle: { type: Type.STRING },
     description: { type: Type.STRING },
-    primaryColor: { type: Type.STRING, enum: ["indigo", "emerald", "rose", "amber", "cyan", "violet", "orange"] },
+    primaryColor: { type: Type.STRING },
     glossary: {
       type: Type.ARRAY,
       items: {
@@ -108,6 +80,7 @@ const courseSchema: Schema = {
           title: { type: Type.STRING },
           contentMarkdown: { type: Type.STRING },
           keyTakeaway: { type: Type.STRING },
+          imageDescription: { type: Type.STRING },
           quiz: {
             type: Type.ARRAY,
             items: {
@@ -121,7 +94,7 @@ const courseSchema: Schema = {
             }
           }
         },
-        required: ["id", "title", "contentMarkdown", "keyTakeaway", "quiz"]
+        required: ["id", "title", "contentMarkdown", "keyTakeaway", "quiz", "imageDescription"]
       }
     }
   },
@@ -130,49 +103,25 @@ const courseSchema: Schema = {
 
 // --- API CALLS ---
 
-export const generateEbookIndex = async (course: Course, language: string): Promise<EbookStructure> => {
+export const generateModuleImage = async (description: string): Promise<string> => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-  const context = `
-    Analiza este curso actual:
-    Título: ${course.title}
-    Módulos: ${course.modules.map(m => m.title).join(', ')}
-    
-    Tu tarea es diseñar la arquitectura de un Ebook definitivo y enciclopédico sobre este tema.
-    El índice debe tener 10 capítulos profundos.
-    Idioma: ${language}. Responde solo JSON.
-  `;
+  const prompt = `A high quality, clean software screenshot or minimalist UI illustrative technical diagram of: ${description}. Aesthetic: Modern software, dark mode where appropriate, professional design, 4k.`;
+  
+  try {
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash-image',
+      contents: { parts: [{ text: prompt }] },
+      config: { imageConfig: { aspectRatio: "16:9" } }
+    });
 
-  const response = await ai.models.generateContent({
-    model: 'gemini-3-pro-preview',
-    contents: context,
-    config: {
-      responseMimeType: 'application/json',
-      responseSchema: ebookStructureSchema,
-      thinkingConfig: { thinkingBudget: 2000 }
+    const part = response.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
+    if (part?.inlineData) {
+      return `data:image/png;base64,${part.inlineData.data}`;
     }
-  });
-
-  return JSON.parse(response.text || '{}');
-};
-
-export const generateEbookTopicContent = async (topicTitle: string, chapterTitle: string, bookTitle: string, language: string): Promise<string> => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-  const prompt = `
-    Escribe un tema exhaustivo para un libro de alta gama: "${topicTitle}".
-    Usa un tono magistral, profesional y envolvente.
-    Estructura con Markdown (## y ###). Usa negritas (**) para enfatizar conceptos clave.
-    Idioma: ${language}.
-  `;
-
-  const response = await ai.models.generateContent({
-    model: 'gemini-3-pro-preview',
-    contents: prompt,
-    config: {
-      thinkingConfig: { thinkingBudget: 8000 }
-    }
-  });
-
-  return response.text || '';
+  } catch (e) {
+    console.error("Image gen error", e);
+  }
+  return '';
 };
 
 export const extractTextFromPDF = async (file: File): Promise<string> => {
@@ -188,26 +137,12 @@ export const extractTextFromPDF = async (file: File): Promise<string> => {
   return fullText;
 };
 
-export const translateText = async (text: string, targetLanguage: string): Promise<string> => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-  const prompt = `Translate to ${targetLanguage}: "${text}"`;
-  const response = await ai.models.generateContent({ model: 'gemini-3-flash-preview', contents: prompt });
-  return response.text?.trim() || text;
-};
-
 export const generatePillars = async (topic: string, language: string, contextContent?: string): Promise<{ pillars: Pillar[], relatedTopics: string[] }> => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-  let basePrompt = `Actúa como un mentor de clase mundial experto en: "${topic}".`;
-  if (contextContent) basePrompt += `\nUsa este material como base técnica: ${contextContent.substring(0, 500000)}`;
+  let basePrompt = `Actúa como un mentor experto en: "${topic}".`;
+  if (contextContent) basePrompt += `\nUsa este contexto técnico: ${contextContent.substring(0, 400000)}`;
   
-  basePrompt += `
-    TAREA:
-    1. Identifica los 10 pilares fundamentales para entender este tema a fondo.
-    2. Sugiere 6 temas relacionados que sean innovadores, específicos y de gran interés para alguien que busca aprender sobre "${topic}".
-    
-    IDIOMA: ${language}.
-    FORMATO: Responde estrictamente en JSON.
-  `;
+  basePrompt += `\nIdentifica 10 pilares y 6 temas relacionados. JSON. Idioma: ${language}.`;
 
   const response = await ai.models.generateContent({
     model: 'gemini-3-flash-preview',
@@ -215,38 +150,34 @@ export const generatePillars = async (topic: string, language: string, contextCo
     config: { responseMimeType: 'application/json', responseSchema: pillarsResponseSchema }
   });
   
-  const data = JSON.parse(response.text || '{}');
-  return { 
-    pillars: data.pillars || [], 
-    relatedTopics: data.relatedTopics || [] 
-  };
+  return JSON.parse(response.text || '{"pillars":[], "relatedTopics":[]}');
 };
 
 export const generateVariations = async (pillar: string, parentTopic: string, language: string): Promise<Variation[]> => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-  const prompt = `Genera 10 propuestas de cursos innovadores para el pilar "${pillar}" del ecosistema "${parentTopic}". JSON. Idioma: ${language}.`;
+  const prompt = `Genera 10 propuestas de cursos para "${pillar}" sobre "${parentTopic}". JSON. Idioma: ${language}.`;
   const response = await ai.models.generateContent({
     model: 'gemini-3-flash-preview',
     contents: prompt,
     config: { responseMimeType: 'application/json', responseSchema: variationsSchema }
   });
-  const data = JSON.parse(response.text || '{}');
+  const data = JSON.parse(response.text || '{"variations":[]}');
   return data.variations || [];
 };
 
 export const generateCourse = async (variationTitle: string, variationDescription: string, parentTopic: string, depth: CourseDepth, language: string): Promise<Course> => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const prompt = `
-    Desarrolla un curso de nivel experto sobre: "${variationTitle}". 
-    Instrucciones de formato:
-    - Usa Markdown rico para contentMarkdown.
-    - Utiliza negritas (**) para destacar términos fundamentales.
-    - IMPORTANTE: No utilices listas numeradas (1., 2., 3.). Sustitúyelas SIEMPRE por listas de viñetas elegantes (•) para una lectura ágil y fluida.
-    - Divide el contenido en secciones lógicas con subtítulos (##).
-    - Asegura una profundidad de contenido de tipo "${depth}".
-    - PARA EL QUIZ: Genera exactamente 3 preguntas de opción múltiple por cada módulo para evaluar el aprendizaje.
-    Idioma: ${language}. Genera JSON detallado.
+    Crea un curso experto sobre: "${variationTitle}". 
+    Reglas:
+    - Markdown para contentMarkdown.
+    - NO USES listas numeradas (1., 2.). USA SIEMPRE viñetas (•).
+    - Profundidad: "${depth}".
+    - 3 preguntas de quiz por módulo.
+    - Proporciona imageDescription detallada para cada módulo.
+    Idioma: ${language}. JSON.
   `;
+  
   const response = await ai.models.generateContent({
     model: 'gemini-3-pro-preview',
     contents: prompt,
@@ -256,5 +187,8 @@ export const generateCourse = async (variationTitle: string, variationDescriptio
       thinkingConfig: { thinkingBudget: 4000 }
     }
   });
-  return JSON.parse(response.text || '{}') as Course;
+  
+  const result = JSON.parse(response.text || '{}');
+  if (!result.modules) result.modules = [];
+  return result as Course;
 };

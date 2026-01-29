@@ -35,6 +35,8 @@ export interface CourseModule {
   contentMarkdown: string;
   keyTakeaway: string;
   quiz: QuizQuestion[];
+  imageDescription?: string;
+  imageUrl?: string;
 }
 
 export interface Course {

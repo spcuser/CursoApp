@@ -12,7 +12,8 @@ import {
 import { 
   generatePillars, 
   generateVariations, 
-  generateCourse
+  generateCourse,
+  generateModuleImage
 } from './services/geminiService';
 import { TopicInput } from './components/TopicInput';
 import { PillarSelection } from './components/PillarSelection';
@@ -22,7 +23,7 @@ import { LoadingScreen } from './components/LoadingScreen';
 import { SettingsModal } from './components/SettingsModal';
 import { Sidebar } from './components/Sidebar';
 import { 
-  Folder, BrainCircuit, ChevronDown, Settings, Sun, Moon, Search, X, History, Trash2, Clock, FileText, ChevronRight, Upload, Download, Maximize, Minimize
+  Folder, BrainCircuit, ChevronDown, Settings, Sun, Moon, Search, X, History, Trash2, Clock, FileText, ChevronRight, Upload, Download, Maximize, Minimize, AlertCircle, RefreshCw
 } from 'lucide-react';
 
 const TRANSLATIONS: Record<string, TranslationDictionary> = {
@@ -75,21 +76,36 @@ export default function App() {
   useEffect(() => {
     const stored = localStorage.getItem('cursoapp_history');
     if (stored) {
-      try { setSavedCourses(JSON.parse(stored)); } catch (e) { console.error(e); }
+      try { 
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed)) setSavedCourses(parsed);
+      } catch (e) { console.error("Error cargando historial", e); }
     }
   }, []);
 
+  // Efecto de guardado ultra-seguro (No guarda imágenes Base64 para evitar errores de cuota de LocalStorage)
   useEffect(() => {
     if (!currentSessionId || !topic) return;
+    
+    // Limpiamos datos pesados antes de guardar en el almacenamiento del navegador (5MB límite)
     const sessionData: SavedCourse = {
       id: currentSessionId, createdAt: Date.now(), lastUpdated: Date.now(),
       step, topic, relatedTopics, pillars, selectedPillar: selectedPillar || undefined,
-      variations, selectedVariation: selectedVariation || undefined, course: course || undefined,
+      variations, selectedVariation: selectedVariation || undefined, 
+      course: course ? { 
+        ...course, 
+        modules: course.modules.map(m => ({ ...m, imageUrl: undefined })) 
+      } : undefined,
       depth: currentDepth, completedModuleIds, userHighlights
     };
-    const updated = [sessionData, ...savedCourses.filter(c => c.id !== currentSessionId)];
-    setSavedCourses(updated);
-    localStorage.setItem('cursoapp_history', JSON.stringify(updated));
+
+    const updated = [sessionData, ...savedCourses.filter(c => c.id !== currentSessionId)].slice(0, 10);
+    
+    try {
+      localStorage.setItem('cursoapp_history', JSON.stringify(updated));
+    } catch (e) {
+      console.warn("LocalStorage lleno, no se pudo guardar el historial.");
+    }
   }, [step, topic, pillars, selectedPillar, variations, selectedVariation, course, currentDepth, completedModuleIds, userHighlights]);
 
   useEffect(() => {
@@ -136,7 +152,9 @@ export default function App() {
     e.stopPropagation();
     const updated = savedCourses.filter(c => c.id !== id);
     setSavedCourses(updated);
-    localStorage.setItem('cursoapp_history', JSON.stringify(updated));
+    try {
+      localStorage.setItem('cursoapp_history', JSON.stringify(updated));
+    } catch(err) {}
   };
 
   const handleExportHistory = () => {
@@ -157,11 +175,10 @@ export default function App() {
       try {
         const imported = JSON.parse(event.target?.result as string);
         if (Array.isArray(imported)) {
-          const merged = [...imported, ...savedCourses].filter((v, i, a) => a.findIndex(t => (t.id === v.id)) === i);
-          setSavedCourses(merged);
-          localStorage.setItem('cursoapp_history', JSON.stringify(merged));
+          setSavedCourses(imported);
+          localStorage.setItem('cursoapp_history', JSON.stringify(imported));
         }
-      } catch (err) { alert("Error al importar"); }
+      } catch (err) { alert("Archivo inválido"); }
     };
     reader.readAsText(file);
   };
@@ -171,35 +188,58 @@ export default function App() {
     setCurrentSessionId(crypto.randomUUID());
     try {
       const { pillars: p, relatedTopics: rt } = await generatePillars(inputTopic, language, contextContent);
-      setPillars(p); setRelatedTopics(rt); setStep('PILLARS');
-    } catch (e) { alert('Error'); } finally { setLoading(false); }
+      setPillars(p || []); setRelatedTopics(rt || []); setStep('PILLARS');
+    } catch (e) { alert('Error de conexión'); } finally { setLoading(false); }
   };
 
   const handlePillarSelect = async (pillar: Pillar) => {
     setSelectedPillar(pillar); setLoading(true); setLoadingMessage(t.loading.designing);
     try {
       const v = await generateVariations(pillar.title, topic, language);
-      setVariations(v); setStep('VARIATIONS');
-    } catch (e) { alert('Error'); } finally { setLoading(false); }
+      setVariations(v || []); setStep('VARIATIONS');
+    } catch (e) { alert('Error al generar ideas'); } finally { setLoading(false); }
   };
 
   const handleVariationSelect = async (v: Variation, d: CourseDepth) => {
-    if (course && selectedVariation?.id === v.id && currentDepth === d) {
-      setStep('COURSE');
-      return;
-    }
     setSelectedVariation(v); setCurrentDepth(d); setLoading(true); setLoadingMessage(t.loading.building);
     try {
       const c = await generateCourse(v.title, v.description, topic, d, language);
-      setCourse(c); setStep('COURSE');
-    } catch (e) { alert('Error'); } finally { setLoading(false); }
+      
+      if (c && c.modules && Array.isArray(c.modules) && c.modules.length > 0) {
+        setCourse(c); 
+        setStep('COURSE');
+        setLoading(false);
+
+        // Actualización de imágenes asíncrona pero SEGURA: actualiza solo la propiedad sin recrear todo
+        c.modules.forEach(async (mod, idx) => {
+          if (mod.imageDescription) {
+            try {
+              const imgUrl = await generateModuleImage(mod.imageDescription);
+              if (imgUrl) {
+                setCourse(prev => {
+                  if (!prev || !prev.modules[idx]) return prev;
+                  const updatedModules = [...prev.modules];
+                  updatedModules[idx] = { ...updatedModules[idx], imageUrl: imgUrl };
+                  return { ...prev, modules: updatedModules };
+                });
+              }
+            } catch (err) { console.error("Fallo imagen en módulo", idx); }
+          }
+        });
+      } else {
+        throw new Error("Curso vacío");
+      }
+    } catch (e) { 
+      setLoading(false);
+      alert('Error al construir el curso.'); 
+    }
   };
 
   return (
     <div className={`h-screen flex flex-col font-sans overflow-hidden transition-colors ${darkMode ? 'bg-slate-950 text-slate-200' : 'bg-slate-50 text-slate-900'}`}>
       <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} onDownloadBackup={() => {}} t={t} />
       
-      <header className={`h-24 px-10 mt-10 border-b flex items-center justify-between shrink-0 z-[100] rounded-t-[2.5rem] mx-6 bg-[#444444] border-white/5 shadow-2xl shadow-black/40`}>
+      <header className={`h-24 px-10 mt-10 border-b flex items-center justify-between shrink-0 z-[100] rounded-t-[2.5rem] mx-6 bg-[#444444] border-white/5 shadow-2xl`}>
         <div className="flex items-center gap-12">
           <div className="flex items-center gap-4 cursor-pointer group" onClick={handleRestart}>
             <div className="w-12 h-12 bg-orange-600 rounded-xl flex items-center justify-center text-white shadow-xl shadow-orange-600/30 group-hover:scale-105 transition-transform">
@@ -219,12 +259,7 @@ export default function App() {
               onChange={(e) => setSearchTerm(e.target.value)}
             />
             {searchTerm && (
-              <button 
-                onClick={() => setSearchTerm('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center bg-orange-500 hover:bg-orange-600 text-white rounded-full transition-all shadow-lg active:scale-90 z-50 border-2 border-white/20"
-              >
-                <X size={16} strokeWidth={4} />
-              </button>
+              <button onClick={() => setSearchTerm('')} className="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center bg-orange-500 hover:bg-orange-600 text-white rounded-full transition-all shadow-lg active:scale-90 z-50 border-2 border-white/20"><X size={16} strokeWidth={4} /></button>
             )}
           </div>
         </div>
@@ -240,74 +275,36 @@ export default function App() {
         </nav>
 
         <div className="flex items-center gap-8 relative" ref={dropdownRef}>
-          {/* BOTÓN DE CARPETA COMPACTO CON TOOLTIP */}
-          <button 
-            onClick={() => setIsHistoryOpen(!isHistoryOpen)}
-            title="MIS ESTRATEGIAS"
-            className={`w-14 h-14 rounded-xl flex items-center justify-center transition-all bg-orange-600 text-white hover:bg-orange-700 shadow-xl shadow-orange-600/30 active:scale-90`}
-          >
-            <Folder size={24} />
-          </button>
-
+          <button onClick={() => setIsHistoryOpen(!isHistoryOpen)} title="MIS ESTRATEGIAS" className={`w-14 h-14 rounded-xl flex items-center justify-center transition-all bg-orange-600 text-white hover:bg-orange-700 shadow-xl shadow-orange-600/30 active:scale-90`}><Folder size={24} /></button>
           {isHistoryOpen && (
             <div className="absolute top-full mt-4 right-0 w-[450px] rounded-[2.5rem] shadow-[0_30px_60px_rgba(0,0,0,0.6)] border bg-slate-900 border-slate-800 overflow-hidden animate-fade-in-up z-[200]">
               <div className="p-8 border-b border-slate-800 bg-slate-950/40">
                 <div className="flex justify-between items-center mb-6">
-                  <div className="flex items-center gap-3 text-orange-500">
-                    <History size={20} />
-                    <span className="text-xs font-black uppercase tracking-widest text-slate-400">Tus Documentos</span>
-                  </div>
+                  <div className="flex items-center gap-3 text-orange-500"><History size={20} /><span className="text-xs font-black uppercase tracking-widest text-slate-400">Tus Documentos</span></div>
                 </div>
                 <div className="flex gap-4">
-                  <button onClick={handleExportHistory} className="flex-1 flex items-center justify-center gap-2 py-3 bg-slate-800 hover:bg-slate-700 text-white text-[11px] font-black uppercase rounded-xl border border-slate-700 transition-colors">
-                    <Download size={16} className="text-orange-500" />
-                    <span>Guardar PC</span>
-                  </button>
-                  <button onClick={() => fileImportRef.current?.click()} className="flex-1 flex items-center justify-center gap-2 py-3 bg-slate-800 hover:bg-slate-700 text-white text-[11px] font-black uppercase rounded-xl border border-slate-700 transition-colors">
-                    <Upload size={16} className="text-orange-500" />
-                    <span>Cargar PC</span>
-                  </button>
+                  <button onClick={handleExportHistory} className="flex-1 flex items-center justify-center gap-2 py-3 bg-slate-800 hover:bg-slate-700 text-white text-[11px] font-black uppercase rounded-xl border border-slate-700 transition-colors"><Download size={16} className="text-orange-500" /><span>Guardar PC</span></button>
+                  <button onClick={() => fileImportRef.current?.click()} className="flex-1 flex items-center justify-center gap-2 py-3 bg-slate-800 hover:bg-slate-700 text-white text-[11px] font-black uppercase rounded-xl border border-slate-700 transition-colors"><Upload size={16} className="text-orange-500" /><span>Cargar PC</span></button>
                   <input type="file" ref={fileImportRef} className="hidden" accept=".json" onChange={handleImportHistory} />
                 </div>
               </div>
               <div className="max-h-[400px] overflow-y-auto custom-scrollbar">
-                {sortedSavedCourses.length === 0 ? (
-                  <p className="p-16 text-center text-slate-500 italic font-medium">No hay estrategias guardadas aún.</p>
-                ) : (
+                {sortedSavedCourses.length === 0 ? (<p className="p-16 text-center text-slate-500 italic font-medium">Historial vacío</p>) : (
                   sortedSavedCourses.map(saved => (
                     <div key={saved.id} onClick={() => loadSavedStrategy(saved)} className="flex items-center justify-between p-7 border-b border-slate-800 hover:bg-slate-800/40 cursor-pointer group transition-all">
                       <div className="flex items-center gap-5 min-w-0">
-                        <div className="w-12 h-12 bg-orange-600/10 text-orange-500 rounded-xl flex items-center justify-center group-hover:bg-orange-600 group-hover:text-white transition-all shadow-inner">
-                          <FileText size={24} />
-                        </div>
-                        <div className="min-w-0">
-                          <p className="text-white font-black truncate leading-tight mb-1">{saved.topic}</p>
-                          <p className="text-[10px] text-slate-500 flex items-center gap-2 uppercase font-bold tracking-wider">
-                            <Clock size={12}/>{new Date(saved.lastUpdated).toLocaleDateString()}
-                          </p>
-                        </div>
+                        <div className="w-12 h-12 bg-orange-600/10 text-orange-500 rounded-xl flex items-center justify-center group-hover:bg-orange-600 group-hover:text-white transition-all shadow-inner"><FileText size={24} /></div>
+                        <div className="min-w-0"><p className="text-white font-black truncate leading-tight mb-1">{saved.topic}</p><p className="text-[10px] text-slate-500 flex items-center gap-2 uppercase font-bold tracking-wider"><Clock size={12}/>{new Date(saved.lastUpdated).toLocaleDateString()}</p></div>
                       </div>
-                      <button 
-                        onClick={(e) => deleteSavedStrategy(saved.id, e)} 
-                        className="p-3 text-slate-600 hover:text-rose-500 hover:bg-rose-500/10 rounded-xl opacity-0 group-hover:opacity-100 transition-all"
-                      >
-                        <Trash2 size={18} />
-                      </button>
+                      <button onClick={(e) => deleteSavedStrategy(saved.id, e)} className="p-3 text-slate-600 hover:text-rose-500 hover:bg-rose-500/10 rounded-xl opacity-0 group-hover:opacity-100 transition-all"><Trash2 size={18} /></button>
                     </div>
                   ))
                 )}
               </div>
             </div>
           )}
-
           <div className="flex items-center gap-6 pl-8 border-l border-white/10">
-            <button 
-              onClick={toggleFullscreen} 
-              className="text-slate-400 hover:text-white transition-all p-2 rounded-lg hover:bg-white/5" 
-              title="Expandir"
-            >
-              {isFullscreen ? <Minimize size={26} /> : <Maximize size={26} />}
-            </button>
+            <button onClick={toggleFullscreen} className="text-slate-400 hover:text-white transition-all p-2 rounded-lg hover:bg-white/5">{isFullscreen ? <Minimize size={26} /> : <Maximize size={26} />}</button>
             <button onClick={() => setDarkMode(!darkMode)} className="text-slate-400 hover:text-white transition-all p-2 rounded-lg hover:bg-white/5">{darkMode ? <Sun size={26} /> : <Moon size={26} />}</button>
             <button onClick={() => setIsSettingsOpen(true)} className="text-slate-400 hover:text-white transition-all p-2 rounded-lg hover:bg-white/5"><Settings size={26} /></button>
           </div>
@@ -316,48 +313,38 @@ export default function App() {
 
       <div className="flex-1 flex overflow-hidden">
         <main className={`flex-1 overflow-y-auto pt-10 ${darkMode ? 'bg-[#0a0f1d]' : 'bg-slate-50'}`}>
-          <div className="max-w-screen-2xl mx-auto min-h-full">
+          <div className="max-w-screen-2xl mx-auto min-h-full pb-20">
             {loading ? (
-              <div className="flex items-center justify-center h-full"><LoadingScreen message={loadingMessage} /></div>
+              <LoadingScreen message={loadingMessage} />
             ) : (
-              <>
+              <div className="w-full h-full">
                 {step === 'INPUT' && <TopicInput onSubmit={handleTopicSubmit} t={t} />}
-                {step === 'PILLARS' && <PillarSelection topic={topic} pillars={pillars} relatedTopics={relatedTopics} onSelect={handlePillarSelect} onSelectTopic={handleTopicSubmit} language={language} t={t} searchTerm={searchTerm} />}
-                {step === 'VARIATIONS' && selectedPillar && <VariationSelection pillar={selectedPillar} variations={variations} onSelect={handleVariationSelect} onBack={() => setStep('PILLARS')} t={t} searchTerm={searchTerm} />}
-                {step === 'COURSE' && course && (
-                  <CourseView 
-                    course={course} 
-                    language={language} 
-                    onBack={() => setStep('VARIATIONS')} 
-                    t={t} 
-                    searchTerm={searchTerm} 
-                    completedModuleIds={completedModuleIds} 
-                    userHighlights={userHighlights} 
-                    onToggleModule={(id) => setCompletedModuleIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])} 
-                    onUpdateHighlights={(id, h) => setUserHighlights(prev => ({ ...prev, [id]: h }))} 
-                    onGenerateEbook={() => {}} 
-                  />
+                {step === 'PILLARS' && pillars.length > 0 && <PillarSelection topic={topic} pillars={pillars} relatedTopics={relatedTopics} onSelect={handlePillarSelect} onSelectTopic={handleTopicSubmit} language={language} t={t} searchTerm={searchTerm} />}
+                {step === 'VARIATIONS' && selectedPillar && variations.length > 0 && <VariationSelection pillar={selectedPillar} variations={variations} onSelect={handleVariationSelect} onBack={() => setStep('PILLARS')} t={t} searchTerm={searchTerm} />}
+                {step === 'COURSE' && (
+                  course ? (
+                    <CourseView 
+                      course={course} language={language} onBack={() => setStep('VARIATIONS')} t={t} searchTerm={searchTerm} 
+                      completedModuleIds={completedModuleIds} userHighlights={userHighlights} 
+                      onToggleModule={(id) => setCompletedModuleIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])} 
+                      onUpdateHighlights={(id, h) => setUserHighlights(prev => ({ ...prev, [id]: h }))} 
+                      onGenerateEbook={() => {}} 
+                    />
+                  ) : (
+                    <div className="flex flex-col items-center justify-center h-full text-center space-y-8 animate-fade-in py-20">
+                      <div className="w-24 h-24 bg-rose-500/10 text-rose-500 rounded-full flex items-center justify-center"><AlertCircle size={48} /></div>
+                      <h2 className="text-3xl font-black text-white uppercase tracking-tight">Error al cargar curso</h2>
+                      <button onClick={() => setStep('VARIATIONS')} className="flex items-center gap-3 px-10 py-5 bg-orange-600 text-white rounded-2xl font-black uppercase tracking-widest hover:bg-orange-700 transition-all"><RefreshCw size={20} /><span>Reintentar</span></button>
+                    </div>
+                  )
                 )}
-              </>
+              </div>
             )}
           </div>
         </main>
         
         {step !== 'INPUT' && (
-          <Sidebar 
-            topic={topic} 
-            pillars={pillars} 
-            selectedPillar={selectedPillar} 
-            variations={variations} 
-            selectedVariation={selectedVariation} 
-            course={course} 
-            onSelectPillar={handlePillarSelect} 
-            onSelectVariation={(v) => handleVariationSelect(v, currentDepth)} 
-            isVisible={true} 
-            mobileOpen={false} 
-            onCloseMobile={() => {}} 
-            t={t} 
-          />
+          <Sidebar topic={topic} pillars={pillars} selectedPillar={selectedPillar} variations={variations} selectedVariation={selectedVariation} course={course} onSelectPillar={handlePillarSelect} onSelectVariation={(v) => handleVariationSelect(v, currentDepth)} isVisible={true} mobileOpen={false} onCloseMobile={() => {}} t={t} />
         )}
       </div>
     </div>

@@ -19,7 +19,7 @@ interface SidebarProps {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ 
-  topic, pillars, selectedPillar, variations, selectedVariation, 
+  topic, pillars = [], selectedPillar, variations = [], selectedVariation, 
   onSelectPillar, onSelectVariation, t 
 }) => {
   return (
@@ -33,9 +33,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </p>
       </div>
 
-      {/* Reducción de space-y-8 (32px) a 27px */}
       <div className="space-y-[27px]">
-        {/* Reducción de space-y-4 (16px) a 11px */}
         <div className="space-y-[11px]">
           {pillars.map((pillar) => {
             const isPillarSelected = selectedPillar?.id === pillar.id;
@@ -50,7 +48,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   {isPillarSelected ? <ChevronDown size={16} className="ml-auto" /> : <ChevronRight size={16} className="ml-auto opacity-0 group-hover:opacity-100" />}
                 </button>
 
-                {isPillarSelected && (
+                {isPillarSelected && variations && variations.length > 0 && (
                   <div className="ml-5 pl-5 border-l border-slate-800 space-y-3 py-2">
                     {variations.map(v => (
                       <button 
@@ -72,12 +70,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <div className="pt-8 border-t border-slate-900">
            <div className="flex items-center gap-3 text-[10px] font-black text-slate-600 uppercase tracking-widest mb-6">
              <BookOpen size={14} />
-             <span>CURSO</span>
+             <span>ESTADO</span>
            </div>
            <div className="space-y-3">
              <div className="flex items-center gap-4 p-4 bg-[#444444]/30 rounded-2xl text-slate-500 border border-white/5 mx-[5px]">
-               <div className="w-6 h-6 bg-slate-800 rounded-lg flex items-center justify-center text-[11px] font-black">1</div>
-               <span className="text-xs font-bold truncate">Módulo Activo</span>
+               <div className="w-6 h-6 bg-slate-800 rounded-lg flex items-center justify-center text-[11px] font-black">!</div>
+               <span className="text-xs font-bold truncate">Lección en curso</span>
              </div>
            </div>
         </div>

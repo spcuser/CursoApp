@@ -96,11 +96,20 @@ export const CourseView: React.FC<CourseViewProps> = ({
   const [selectedGlossaryTerm, setSelectedGlossaryTerm] = useState<string | null>(null);
   const [selectionBox, setSelectionBox] = useState<{ x: number, y: number, text: string } | null>(null);
   
+  const contentRef = useRef<HTMLDivElement>(null);
+
   // Quiz states
   const [quizIndex, setQuizIndex] = useState(0);
   const [quizAnswers, setQuizAnswers] = useState<number[]>([]);
   const [quizFinished, setQuizFinished] = useState(false);
   const [selectedOption, setSelectedOption] = useState<number | null>(null);
+
+  // EFECTO PARA REINICIAR EL SCROLL AL CAMBIAR DE MÓDULO O VISTA
+  useEffect(() => {
+    if (contentRef.current) {
+      contentRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }, [activeModuleId, viewMode]);
 
   const activeModule = course.modules.find(m => m.id === activeModuleId) || course.modules[0];
   const isModuleCompleted = completedModuleIds.includes(activeModule.id);
@@ -197,7 +206,6 @@ export const CourseView: React.FC<CourseViewProps> = ({
             );
           })}
 
-          {/* FINAL QUIZ ENTRY (UNLOCKED WHEN ALL COMPLETED) */}
           <button 
             disabled={!allModulesCompleted}
             onClick={() => { setViewMode('quiz'); resetQuiz(); }}
@@ -217,7 +225,7 @@ export const CourseView: React.FC<CourseViewProps> = ({
         </div>
       </aside>
 
-      <div className="flex-1 overflow-y-auto px-16 py-16 bg-[#0a0f1d] relative">
+      <div ref={contentRef} className="flex-1 overflow-y-auto px-16 py-16 bg-[#0a0f1d] relative scroll-smooth">
         {selectionBox && (
           <button onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); }} onClick={addHighlight} style={{ left: selectionBox.x, top: selectionBox.y }} className="fixed -translate-x-1/2 z-[300] flex items-center gap-3 px-6 py-3 bg-orange-500 text-white rounded-full shadow-2xl font-black text-sm uppercase tracking-widest animate-fade-in-up border-2 border-white/40 hover:scale-110 hover:bg-orange-600 transition-all cursor-pointer"><PlusCircle size={20} /><span>Resaltar</span></button>
         )}

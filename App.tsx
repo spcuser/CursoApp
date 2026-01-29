@@ -166,11 +166,11 @@ export default function App() {
     reader.readAsText(file);
   };
 
-  const handleTopicSubmit = async (inputTopic: string) => {
+  const handleTopicSubmit = async (inputTopic: string, contextContent?: string) => {
     setTopic(inputTopic); setLoading(true); setLoadingMessage(t.loading.analyzing);
     setCurrentSessionId(crypto.randomUUID());
     try {
-      const { pillars: p, relatedTopics: rt } = await generatePillars(inputTopic, language);
+      const { pillars: p, relatedTopics: rt } = await generatePillars(inputTopic, language, contextContent);
       setPillars(p); setRelatedTopics(rt); setStep('PILLARS');
     } catch (e) { alert('Error'); } finally { setLoading(false); }
   };

@@ -65,7 +65,10 @@ export const TopicInput: React.FC<TopicInputProps> = ({ onSubmit, t }) => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (value.trim()) onSubmit(value, uploadedFile?.content);
+    const finalTopic = value.trim() || (uploadedFile ? uploadedFile.name.split('.')[0] : '');
+    if (finalTopic) {
+      onSubmit(finalTopic, uploadedFile?.content);
+    }
   };
 
   return (
@@ -111,12 +114,12 @@ export const TopicInput: React.FC<TopicInputProps> = ({ onSubmit, t }) => {
                   {isProcessingFile ? (
                      <div className="flex items-center gap-2 px-3 py-2 text-sm text-orange-600 font-bold"><Loader2 size={16} className="animate-spin" /><span>Analizando...</span></div>
                   ) : uploadedFile ? (
-                     <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 rounded-lg border border-emerald-200 text-sm font-bold"><FileText size={14} /><span className="truncate max-w-[150px]">{uploadedFile.name}</span><button onClick={() => setUploadedFile(null)} className="hover:text-rose-500 transition-colors"><X size={12} /></button></div>
+                     <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 rounded-lg border border-emerald-200 text-sm font-bold"><FileText size={14} /><span className="truncate max-w-[150px]">{uploadedFile.name}</span><button onClick={() => setUploadedFile(null)} className="hover:text-rose-500 transition-colors cursor-pointer"><X size={12} /></button></div>
                   ) : (
                     <button type="button" onClick={() => fileInputRef.current?.click()} className="flex items-center gap-2 px-3 py-2 text-sm text-slate-500 hover:text-orange-500 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-lg font-bold transition-all"><Upload size={18} /><span>Subir PDF base</span></button>
                   )}
                 </div>
-                <button type="submit" disabled={!value.trim() && !uploadedFile} className="w-full sm:w-auto flex items-center justify-center gap-2 px-8 py-3 bg-orange-600 text-white rounded-lg hover:shadow-lg hover:shadow-orange-500/40 font-black uppercase tracking-widest transition-all active:scale-95 disabled:opacity-50"><span>{t.input.button}</span><Send size={18} /></button>
+                <button type="submit" disabled={!value.trim() && !uploadedFile} className="w-full sm:w-auto flex items-center justify-center gap-2 px-8 py-3 bg-orange-600 text-white rounded-lg hover:shadow-lg hover:shadow-orange-500/40 font-black uppercase tracking-widest transition-all active:scale-95 disabled:opacity-50 cursor-pointer"><span>{t.input.button}</span><Send size={18} /></button>
               </div>
             </div>
           </form>

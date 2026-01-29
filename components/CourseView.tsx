@@ -220,6 +220,19 @@ export const CourseView: React.FC<CourseViewProps> = ({
     setViewMode(mode);
   };
 
+  const scrollToTop = () => {
+    contentRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const scrollToBottom = () => {
+    if (contentRef.current) {
+      contentRef.current.scrollTo({ 
+        top: contentRef.current.scrollHeight, 
+        behavior: 'smooth' 
+      });
+    }
+  };
+
   return (
     <div className="flex h-full w-full overflow-hidden" onMouseUp={handleMouseUp}>
       <aside className="w-[440px] border-r border-slate-900 bg-slate-950 flex flex-col p-8 overflow-y-auto shrink-0">
@@ -267,114 +280,141 @@ export const CourseView: React.FC<CourseViewProps> = ({
         </div>
       </aside>
 
-      <div ref={contentRef} className="flex-1 overflow-y-auto px-16 py-16 bg-[#0a0f1d] relative scroll-smooth">
-        {selectionBox && (
-          <button onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); }} onClick={addHighlight} style={{ left: selectionBox.x, top: selectionBox.y }} className="fixed -translate-x-1/2 z-[300] flex items-center gap-3 px-6 py-3 bg-orange-500 text-white rounded-full shadow-2xl font-black text-sm uppercase tracking-widest animate-fade-in-up border-2 border-white/40 hover:scale-110 hover:bg-orange-600 transition-all cursor-pointer"><PlusCircle size={20} /><span>Resaltar</span></button>
+      <div className="flex-1 relative overflow-hidden bg-[#0a0f1d]">
+        {/* FLECHAS DE NAVEGACIÓN (Triángulos estáticos estilo captura) */}
+        {viewMode === 'module' && (
+          <div className="absolute right-4 top-1/2 -translate-y-1/2 z-[200] flex flex-col gap-8 animate-fade-in">
+            {/* TRIÁNGULO ARRIBA */}
+            <button 
+              onClick={scrollToTop}
+              className="group relative w-12 h-12 flex items-center justify-center transition-all hover:scale-110 active:scale-90"
+              title="Volver al principio"
+            >
+              <svg width="44" height="44" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" className="drop-shadow-[0_0_15px_rgba(249,115,22,0.4)]">
+                <path d="M20 5L35 30H5L20 5Z" fill="white" stroke="#F97316" strokeWidth="5" strokeLinejoin="round"/>
+              </svg>
+            </button>
+            {/* TRIÁNGULO ABAJO */}
+            <button 
+              onClick={scrollToBottom}
+              className="group relative w-12 h-12 flex items-center justify-center transition-all hover:scale-110 active:scale-90"
+              title="Ir al final"
+            >
+              <svg width="44" height="44" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" className="drop-shadow-[0_0_15px_rgba(249,115,22,0.4)]">
+                <path d="M20 35L5 10H35L20 35Z" fill="white" stroke="#F97316" strokeWidth="5" strokeLinejoin="round"/>
+              </svg>
+            </button>
+          </div>
         )}
 
-        <div className="max-w-4xl mx-auto space-y-20">
-          {viewMode === 'module' ? (
-            <>
-              <div className="p-12 bg-orange-600 rounded-[3rem] text-white shadow-2xl flex flex-col items-center text-center space-y-8">
-                <div className="flex items-center gap-3 text-[13px] font-black uppercase tracking-[0.3em] opacity-90"><Star size={20} fill="currentColor" /><span>{t.course.keyTakeaway}</span></div>
-                <p className="text-3xl font-medium leading-[1.4]">{cleanMarkdown(activeModule.keyTakeaway)}</p>
-              </div>
-              <div className="space-y-12">
-                <h1 className="text-5xl font-black text-white tracking-tight leading-tight">{cleanMarkdown(activeModule.title)}</h1>
-                <div className="text-2xl leading-[1.7] text-slate-300 space-y-12 select-text">
-                  {activeModule.contentMarkdown.split(/\n\n/).map((block, idx) => (
-                    <div key={idx} className="whitespace-pre-wrap"><TextProcessor text={block} glossary={course.glossary} onTermClick={handleTermClick} onRemoveHighlight={removeHighlight} searchTerm={searchTerm} userHighlights={moduleHighlights} /></div>
-                  ))}
-                </div>
-              </div>
-              <div className="pt-16 pb-20 flex justify-center">
-                <button onClick={() => onToggleModule(activeModule.id)} className={`px-16 py-6 rounded-3xl font-black text-sm uppercase tracking-widest transition-all shadow-2xl ${isModuleCompleted ? 'bg-emerald-600 text-white' : 'bg-orange-600 text-white hover:bg-orange-700 shadow-orange-500/30'}`}>{isModuleCompleted ? '✓ MÓDULO COMPLETADO' : 'MARCAR COMO COMPLETADO'}</button>
-              </div>
-            </>
-          ) : viewMode === 'quiz' ? (
-            <div className="animate-fade-in-up space-y-12">
-              {!quizFinished ? (
-                <div className="space-y-10">
-                  <div className="flex justify-between items-end">
-                    <div>
-                      <h2 className="text-5xl font-black text-white mb-4 uppercase tracking-tighter">Examen Final</h2>
-                      <p className="text-slate-500 font-bold uppercase tracking-widest">Pregunta {quizIndex + 1} de {allQuestions.length}</p>
-                    </div>
-                    {/* REDUCCIÓN DE TAMAÑO DEL INDICADOR DE PORCENTAJE */}
-                    <div className="w-24 h-24 relative flex items-center justify-center">
-                      <svg className="w-full h-full transform -rotate-90" viewBox="0 0 128 128">
-                        <circle cx="64" cy="64" r="50" fill="transparent" stroke="currentColor" strokeWidth="8" className="text-slate-800" />
-                        <circle cx="64" cy="64" r="50" fill="transparent" stroke="currentColor" strokeWidth="8" strokeDasharray={314} strokeDashoffset={314 - (314 * (quizIndex + 1)) / allQuestions.length} className="text-orange-500 transition-all duration-1000" />
-                      </svg>
-                      <span className="absolute text-xl font-black text-white">{Math.round(((quizIndex + 1) / allQuestions.length) * 100)}%</span>
-                    </div>
-                  </div>
-
-                  <div className="bg-[#444444] p-16 rounded-[3rem] border border-white/5 shadow-2xl space-y-12">
-                    <p className="text-3xl font-bold text-white leading-snug">{allQuestions[quizIndex]?.question}</p>
-                    <div className="grid grid-cols-1 gap-6">
-                      {allQuestions[quizIndex]?.options.map((opt, i) => {
-                        const isSelected = selectedOption === i;
-                        const isCorrect = i === allQuestions[quizIndex].correctAnswerIndex;
-                        const bgColor = isSelected ? (isCorrect ? 'bg-emerald-600 border-emerald-400' : 'bg-rose-600 border-rose-400') : 'bg-black/20 border-white/10 hover:border-orange-500 hover:bg-white/5';
-                        return (
-                          <button key={i} onClick={() => handleQuizAnswer(i)} className={`p-8 rounded-[2rem] border transition-all text-left text-xl font-medium flex items-center justify-between group ${bgColor}`}>
-                            <span className={isSelected ? 'text-white' : 'text-slate-300 group-hover:text-white'}>{opt}</span>
-                            {isSelected && (isCorrect ? <Trophy size={24} /> : <RotateCcw size={24} />)}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div className="flex flex-col items-center text-center space-y-12 py-20">
-                  <div className="w-48 h-48 bg-orange-600 rounded-full flex items-center justify-center text-white shadow-[0_0_80px_rgba(249,115,22,0.4)] animate-bounce"><Trophy size={80} /></div>
-                  <div>
-                    <h2 className="text-6xl font-black text-white mb-6 uppercase tracking-tight">¡EXAMEN FINALIZADO!</h2>
-                    <p className="text-3xl text-slate-400 font-medium max-w-2xl mx-auto">Has completado el curso con éxito. Tu puntuación final es:</p>
-                  </div>
-                  <div className="bg-white text-slate-950 px-16 py-10 rounded-[3rem] text-8xl font-black shadow-2xl">
-                    {quizAnswers.filter((a, i) => a === allQuestions[i].correctAnswerIndex).length} / {allQuestions.length}
-                  </div>
-                  <div className="flex gap-6">
-                    <button onClick={resetQuiz} className="flex items-center gap-3 px-12 py-6 bg-[#444444] text-white rounded-[2rem] font-black uppercase tracking-widest hover:bg-slate-700 transition-all"><RotateCcw size={24} /><span>Reintentar</span></button>
-                    <button onClick={() => setViewMode('module')} className="flex items-center gap-3 px-12 py-6 bg-orange-600 text-white rounded-[2rem] font-black uppercase tracking-widest hover:bg-orange-700 transition-all shadow-xl shadow-orange-600/30"><span>Terminar Curso</span><ArrowRight size={24} /></button>
-                  </div>
-                </div>
-              )}
-            </div>
-          ) : viewMode === 'glossary' ? (
-            <div className="space-y-12 animate-fade-in-up">
-               <div className="bg-[#444444] p-16 rounded-[4rem] border border-white/5 shadow-2xl">
-                 <h2 className="text-6xl font-black text-white mb-16 uppercase tracking-tight text-center">GLOSARIO</h2>
-                 <div className="grid grid-cols-1 gap-8">
-                   {course.glossary.map((g, idx) => {
-                     const isSelected = selectedGlossaryTerm === g.term;
-                     return (
-                       <div 
-                        key={idx} 
-                        id={`term-${g.term}`} 
-                        onClick={() => setViewMode('module')}
-                        className={`group relative p-12 rounded-[2.5rem] border-2 transition-all cursor-pointer hover:scale-[1.02] ${isSelected ? 'bg-orange-600 border-orange-400 shadow-2xl shadow-orange-600/40' : 'bg-black/20 border-white/5 hover:border-orange-500/50'}`}
-                       >
-                         <div className={`absolute top-10 right-10 transition-all ${isSelected ? 'text-white' : 'text-orange-500 opacity-0 group-hover:opacity-100'}`}>
-                           <CornerUpLeft size={36} strokeWidth={2.5} />
-                         </div>
-                         <h3 className={`text-3xl font-black uppercase mb-4 tracking-tight ${isSelected ? 'text-white' : 'text-orange-500'}`}>{g.term}</h3>
-                         <p className={`text-2xl leading-relaxed font-medium ${isSelected ? 'text-white' : 'text-slate-300'}`}>{g.definition}</p>
-                       </div>
-                     );
-                   })}
-                 </div>
-               </div>
-            </div>
-          ) : (
-            <div className="space-y-12 animate-fade-in-up">
-               <div className="flex items-center justify-between mb-12"><button onClick={() => setViewMode('module')} className="flex items-center gap-4 text-slate-400 hover:text-orange-500 transition-all font-black text-xl group"><ArrowLeft size={32} strokeWidth={3} className="group-hover:-translate-x-2 transition-transform" /><span>VOLVER A LA LECCIÓN</span></button>{moduleHighlights.length > 0 && (<button onClick={clearAllHighlights} className="flex items-center gap-2 px-6 py-3 bg-rose-600/10 text-rose-500 hover:bg-rose-600 hover:text-white border border-rose-600/30 rounded-2xl transition-all font-black text-xs uppercase tracking-widest"><XCircle size={18} /><span>Borrar Todo</span></button>)}</div>
-               <div className="bg-[#444444] p-16 rounded-[3rem] border border-white/5 shadow-2xl"><h2 className="text-4xl font-black text-white mb-12 uppercase tracking-tight">MIS NOTAS</h2><div className="space-y-6">{moduleHighlights.length === 0 ? (<p className="text-slate-500 italic text-xl">Selecciona texto en la lección y usa el botón "Resaltar" para guardar fragmentos importantes. Haz clic en un texto resaltado para borrarlo.</p>) : (moduleHighlights.map((h, i) => (<div key={i} className="flex items-start justify-between p-8 bg-orange-600/10 border-l-8 border-orange-500 rounded-r-2xl group transition-all hover:bg-orange-600/20"><p className="text-xl font-bold text-slate-100 italic flex-1 pr-6">"{h}"</p><button onClick={() => removeHighlight(h)} className="p-3 text-slate-500 hover:text-rose-500 hover:bg-rose-500/10 rounded-xl transition-all" title="Eliminar nota"><Trash2 size={20} /></button></div>)))}</div></div>
-            </div>
+        <div ref={contentRef} className="h-full overflow-y-auto px-16 py-16 scroll-smooth select-text relative">
+          {selectionBox && (
+            <button onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); }} onClick={addHighlight} style={{ left: selectionBox.x, top: selectionBox.y }} className="fixed -translate-x-1/2 z-[300] flex items-center gap-3 px-6 py-3 bg-orange-500 text-white rounded-full shadow-2xl font-black text-sm uppercase tracking-widest animate-fade-in-up border-2 border-white/40 hover:scale-110 hover:bg-orange-600 transition-all cursor-pointer"><PlusCircle size={20} /><span>Resaltar</span></button>
           )}
+
+          <div className="max-w-4xl mx-auto space-y-20">
+            {viewMode === 'module' ? (
+              <>
+                <div className="p-12 bg-orange-600 rounded-[3rem] text-white shadow-2xl flex flex-col items-center text-center space-y-8">
+                  <div className="flex items-center gap-3 text-[13px] font-black uppercase tracking-[0.3em] opacity-90"><Star size={20} fill="currentColor" /><span>{t.course.keyTakeaway}</span></div>
+                  <p className="text-3xl font-medium leading-[1.4]">{cleanMarkdown(activeModule.keyTakeaway)}</p>
+                </div>
+                <div className="space-y-12">
+                  <h1 className="text-5xl font-black text-white tracking-tight leading-tight">{cleanMarkdown(activeModule.title)}</h1>
+                  <div className="text-2xl leading-[1.7] text-slate-300 space-y-12 select-text">
+                    {activeModule.contentMarkdown.split(/\n\n/).map((block, idx) => (
+                      <div key={idx} className="whitespace-pre-wrap"><TextProcessor text={block} glossary={course.glossary} onTermClick={handleTermClick} onRemoveHighlight={removeHighlight} searchTerm={searchTerm} userHighlights={moduleHighlights} /></div>
+                    ))}
+                  </div>
+                </div>
+                <div className="pt-16 pb-20 flex justify-center">
+                  <button onClick={() => onToggleModule(activeModule.id)} className={`px-16 py-6 rounded-3xl font-black text-sm uppercase tracking-widest transition-all shadow-2xl ${isModuleCompleted ? 'bg-emerald-600 text-white' : 'bg-orange-600 text-white hover:bg-orange-700 shadow-orange-500/30'}`}>{isModuleCompleted ? '✓ MÓDULO COMPLETADO' : 'MARCAR COMO COMPLETADO'}</button>
+                </div>
+              </>
+            ) : viewMode === 'quiz' ? (
+              <div className="animate-fade-in-up space-y-12">
+                {!quizFinished ? (
+                  <div className="space-y-10">
+                    <div className="flex justify-between items-end">
+                      <div>
+                        <h2 className="text-5xl font-black text-white mb-4 uppercase tracking-tighter">Examen Final</h2>
+                        <p className="text-slate-500 font-bold uppercase tracking-widest">Pregunta {quizIndex + 1} de {allQuestions.length}</p>
+                      </div>
+                      <div className="w-24 h-24 relative flex items-center justify-center">
+                        <svg className="w-full h-full transform -rotate-90" viewBox="0 0 128 128">
+                          <circle cx="64" cy="64" r="50" fill="transparent" stroke="currentColor" strokeWidth="8" className="text-slate-800" />
+                          <circle cx="64" cy="64" r="50" fill="transparent" stroke="currentColor" strokeWidth="8" strokeDasharray={314} strokeDashoffset={314 - (314 * (quizIndex + 1)) / allQuestions.length} className="text-orange-500 transition-all duration-1000" />
+                        </svg>
+                        <span className="absolute text-xl font-black text-white">{Math.round(((quizIndex + 1) / allQuestions.length) * 100)}%</span>
+                      </div>
+                    </div>
+
+                    <div className="bg-[#444444] p-16 rounded-[3rem] border border-white/5 shadow-2xl space-y-12">
+                      <p className="text-3xl font-bold text-white leading-snug">{allQuestions[quizIndex]?.question}</p>
+                      <div className="grid grid-cols-1 gap-6">
+                        {allQuestions[quizIndex]?.options.map((opt, i) => {
+                          const isSelected = selectedOption === i;
+                          const isCorrect = i === allQuestions[quizIndex].correctAnswerIndex;
+                          const bgColor = isSelected ? (isCorrect ? 'bg-emerald-600 border-emerald-400' : 'bg-rose-600 border-rose-400') : 'bg-black/20 border-white/10 hover:border-orange-500 hover:bg-white/5';
+                          return (
+                            <button key={i} onClick={() => handleQuizAnswer(i)} className={`p-8 rounded-[2rem] border transition-all text-left text-xl font-medium flex items-center justify-between group ${bgColor}`}>
+                              <span className={isSelected ? 'text-white' : 'text-slate-300 group-hover:text-white'}>{opt}</span>
+                              {isSelected && (isCorrect ? <Trophy size={24} /> : <RotateCcw size={24} />)}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center text-center space-y-12 py-20">
+                    <div className="w-48 h-48 bg-orange-600 rounded-full flex items-center justify-center text-white shadow-[0_0_80px_rgba(249,115,22,0.4)] animate-bounce"><Trophy size={80} /></div>
+                    <div>
+                      <h2 className="text-6xl font-black text-white mb-6 uppercase tracking-tight">¡EXAMEN FINALIZADO!</h2>
+                      <p className="text-3xl text-slate-400 font-medium max-w-2xl mx-auto">Has completado el curso con éxito. Tu puntuación final es:</p>
+                    </div>
+                    <div className="bg-white text-slate-950 px-16 py-10 rounded-[3rem] text-8xl font-black shadow-2xl">
+                      {quizAnswers.filter((a, i) => a === allQuestions[i].correctAnswerIndex).length} / {allQuestions.length}
+                    </div>
+                    <div className="flex gap-6">
+                      <button onClick={resetQuiz} className="flex items-center gap-3 px-12 py-6 bg-[#444444] text-white rounded-[2rem] font-black uppercase tracking-widest hover:bg-slate-700 transition-all"><RotateCcw size={24} /><span>Reintentar</span></button>
+                      <button onClick={() => setViewMode('module')} className="flex items-center gap-3 px-12 py-6 bg-orange-600 text-white rounded-[2rem] font-black uppercase tracking-widest hover:bg-orange-700 transition-all shadow-xl shadow-orange-600/30"><span>Terminar Curso</span><ArrowRight size={24} /></button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : viewMode === 'glossary' ? (
+              <div className="space-y-12 animate-fade-in-up">
+                 <div className="bg-[#444444] p-16 rounded-[4rem] border border-white/5 shadow-2xl">
+                   <h2 className="text-6xl font-black text-white mb-16 uppercase tracking-tight text-center">GLOSARIO</h2>
+                   <div className="grid grid-cols-1 gap-8">
+                     {course.glossary.map((g, idx) => {
+                       const isSelected = selectedGlossaryTerm === g.term;
+                       return (
+                         <div 
+                          key={idx} 
+                          id={`term-${g.term}`} 
+                          onClick={() => setViewMode('module')}
+                          className={`group relative p-12 rounded-[2.5rem] border-2 transition-all cursor-pointer hover:scale-[1.02] ${isSelected ? 'bg-orange-600 border-orange-400 shadow-2xl shadow-orange-600/40' : 'bg-black/20 border-white/5 hover:border-orange-500/50'}`}
+                         >
+                           <div className={`absolute top-10 right-10 transition-all ${isSelected ? 'text-white' : 'text-orange-500 opacity-0 group-hover:opacity-100'}`}>
+                             <CornerUpLeft size={36} strokeWidth={2.5} />
+                           </div>
+                           <h3 className={`text-3xl font-black uppercase mb-4 tracking-tight ${isSelected ? 'text-white' : 'text-orange-500'}`}>{g.term}</h3>
+                           <p className={`text-2xl leading-relaxed font-medium ${isSelected ? 'text-white' : 'text-slate-300'}`}>{g.definition}</p>
+                         </div>
+                       );
+                     })}
+                   </div>
+                 </div>
+              </div>
+            ) : (
+              <div className="space-y-12 animate-fade-in-up">
+                 <div className="flex items-center justify-between mb-12"><button onClick={() => setViewMode('module')} className="flex items-center gap-4 text-slate-400 hover:text-orange-500 transition-all font-black text-xl group"><ArrowLeft size={32} strokeWidth={3} className="group-hover:-translate-x-2 transition-transform" /><span>VOLVER A LA LECCIÓN</span></button>{moduleHighlights.length > 0 && (<button onClick={clearAllHighlights} className="flex items-center gap-2 px-6 py-3 bg-rose-600/10 text-rose-500 hover:bg-rose-600 hover:text-white border border-rose-600/30 rounded-2xl transition-all font-black text-xs uppercase tracking-widest"><XCircle size={18} /><span>Borrar Todo</span></button>)}</div>
+                 <div className="bg-[#444444] p-16 rounded-[3rem] border border-white/5 shadow-2xl"><h2 className="text-4xl font-black text-white mb-12 uppercase tracking-tight">MIS NOTAS</h2><div className="space-y-6">{moduleHighlights.length === 0 ? (<p className="text-slate-500 italic text-xl">Selecciona texto en la lección y usa el botón "Resaltar" para guardar fragmentos importantes. Haz clic en un texto resaltado para borrarlo.</p>) : (moduleHighlights.map((h, i) => (<div key={i} className="flex items-start justify-between p-8 bg-orange-600/10 border-l-8 border-orange-500 rounded-r-2xl group transition-all hover:bg-orange-600/20"><p className="text-xl font-bold text-slate-100 italic flex-1 pr-6">"{h}"</p><button onClick={() => removeHighlight(h)} className="p-3 text-slate-500 hover:text-rose-500 hover:bg-rose-500/10 rounded-xl transition-all" title="Eliminar nota"><Trash2 size={20} /></button></div>)))}</div></div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>

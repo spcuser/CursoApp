@@ -77,7 +77,7 @@ const TextProcessor: React.FC<{
         const glossaryEntry = glossary.find(g => g.term.trim().toLowerCase() === lowerPart);
         if (glossaryEntry) {
           return (
-            <button key={i} onClick={() => onTermClick(glossaryEntry.term)} className="border-b-2 border-orange-500/50 hover:border-orange-500 hover:text-orange-500 transition-all cursor-pointer font-bold inline">
+            <button key={i} onClick={() => onTermClick(glossaryEntry.term)} className="border-b-2 border-orange-500/50 hover:border-orange-500 hover:text-orange-500 transition-all cursor-pointer font-bold inline text-left">
               {part}
             </button>
           );
@@ -97,6 +97,11 @@ export const CourseView: React.FC<CourseViewProps> = ({
   const [selectionBox, setSelectionBox] = useState<{ x: number, y: number, text: string } | null>(null);
   
   const contentRef = useRef<HTMLDivElement>(null);
+  
+  // Persistencia de scroll
+  const lastScrollPosRef = useRef(0);
+  const prevViewModeRef = useRef(viewMode);
+  const prevModuleIdRef = useRef(activeModuleId);
 
   // Quiz states
   const [quizIndex, setQuizIndex] = useState(0);
@@ -104,11 +109,28 @@ export const CourseView: React.FC<CourseViewProps> = ({
   const [quizFinished, setQuizFinished] = useState(false);
   const [selectedOption, setSelectedOption] = useState<number | null>(null);
 
-  // EFECTO PARA REINICIAR EL SCROLL AL CAMBIAR DE MÓDULO O VISTA
+  // EFECTO PARA GESTIONAR EL SCROLL INTELIGENTE
   useEffect(() => {
-    if (contentRef.current) {
-      contentRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+    const container = contentRef.current;
+    if (!container) return;
+
+    // 1. Si cambió el módulo (lección diferente), siempre al principio
+    if (prevModuleIdRef.current !== activeModuleId) {
+      container.scrollTo({ top: 0, behavior: 'auto' });
+      lastScrollPosRef.current = 0;
+    } 
+    // 2. Si regresamos a la lección desde el glosario o notas, restaurar posición
+    else if (viewMode === 'module' && prevViewModeRef.current !== 'module') {
+      container.scrollTo({ top: lastScrollPosRef.current, behavior: 'smooth' });
     }
+    // 3. Si entramos a glosario/quiz/notas, ir al principio de esa vista
+    else if (viewMode !== 'module') {
+      container.scrollTo({ top: 0, behavior: 'auto' });
+    }
+
+    // Actualizar referencias previas para el siguiente cambio
+    prevViewModeRef.current = viewMode;
+    prevModuleIdRef.current = activeModuleId;
   }, [activeModuleId, viewMode]);
 
   const activeModule = course.modules.find(m => m.id === activeModuleId) || course.modules[0];
@@ -180,11 +202,22 @@ export const CourseView: React.FC<CourseViewProps> = ({
   };
 
   const handleTermClick = (term: string) => {
+    // Guardar posición de lectura antes de saltar al glosario
+    if (contentRef.current && viewMode === 'module') {
+      lastScrollPosRef.current = contentRef.current.scrollTop;
+    }
     setSelectedGlossaryTerm(term);
     setViewMode('glossary');
     setTimeout(() => {
       document.getElementById(`term-${term}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }, 100);
+  };
+
+  const changeViewWithSave = (mode: 'module' | 'glossary' | 'highlights' | 'quiz') => {
+    if (contentRef.current && viewMode === 'module') {
+      lastScrollPosRef.current = contentRef.current.scrollTop;
+    }
+    setViewMode(mode);
   };
 
   return (
@@ -197,7 +230,11 @@ export const CourseView: React.FC<CourseViewProps> = ({
             const isCompleted = completedModuleIds.includes(mod.id);
             return (
               <button 
-                key={mod.id} onClick={() => { setViewMode('module'); setActiveModuleId(mod.id); }}
+                key={mod.id} onClick={() => { 
+                  if (activeModuleId !== mod.id) lastScrollPosRef.current = 0;
+                  setViewMode('module'); 
+                  setActiveModuleId(mod.id); 
+                }}
                 className={`w-[calc(100%-10px)] flex items-center gap-6 p-7 rounded-[2.5rem] transition-all text-left group mx-[5px] ${isActive ? 'bg-white text-slate-950 shadow-2xl scale-[1.03]' : 'bg-[#444444] border border-white/5 text-slate-300 hover:border-orange-500/50'} ${isCompleted && !isActive ? 'opacity-80' : ''}`}
               >
                 <div className={`w-12 h-12 rounded-full flex items-center justify-center text-lg font-black shrink-0 transition-colors ${isActive ? 'bg-orange-500 text-white' : isCompleted ? 'bg-emerald-500/20 text-emerald-500' : 'bg-slate-800/50 text-slate-500'}`}>{idx + 1}</div>
@@ -208,7 +245,12 @@ export const CourseView: React.FC<CourseViewProps> = ({
 
           <button 
             disabled={!allModulesCompleted}
-            onClick={() => { setViewMode('quiz'); resetQuiz(); }}
+            onClick={() => { 
+              if (allModulesCompleted) {
+                changeViewWithSave('quiz');
+                resetQuiz();
+              }
+            }}
             className={`w-[calc(100%-10px)] flex items-center gap-6 p-7 rounded-[2.5rem] transition-all text-left group mx-[5px] mt-8 ${!allModulesCompleted ? 'opacity-30 grayscale cursor-not-allowed border-dashed border-slate-700' : viewMode === 'quiz' ? 'bg-orange-600 text-white shadow-2xl scale-[1.03]' : 'bg-orange-500/10 border-2 border-orange-500/30 text-orange-500 hover:bg-orange-500/20'}`}
           >
             <div className={`w-12 h-12 rounded-full flex items-center justify-center text-lg font-black shrink-0 ${viewMode === 'quiz' ? 'bg-white text-orange-600' : 'bg-orange-500 text-white'}`}><ClipboardCheck size={24} /></div>
@@ -220,8 +262,8 @@ export const CourseView: React.FC<CourseViewProps> = ({
         </div>
 
         <div className="grid grid-cols-2 gap-4 mt-12">
-          <button onClick={() => setViewMode('glossary')} className={`flex flex-col items-center justify-center gap-3 p-6 rounded-3xl border transition-all ${viewMode === 'glossary' ? 'bg-orange-600 text-white border-orange-500 shadow-lg shadow-orange-500/30' : 'bg-[#444444] border-white/5 text-slate-400 hover:text-white hover:bg-slate-800'}`}><Book size={24} /><span className="text-[11px] font-black uppercase tracking-widest bg-black/20 px-3 py-1 rounded">GLOSARIO</span></button>
-          <button onClick={() => setViewMode('highlights')} className={`flex flex-col items-center justify-center gap-3 p-6 rounded-3xl border transition-all ${viewMode === 'highlights' ? 'bg-orange-600 text-white border-orange-500 shadow-lg shadow-orange-500/30' : 'bg-[#444444] border-white/5 text-slate-400 hover:text-white hover:bg-slate-800'}`}><Highlighter size={24} /><span className="text-[11px] font-black uppercase tracking-widest bg-black/20 px-3 py-1 rounded">MIS NOTAS</span></button>
+          <button onClick={() => changeViewWithSave('glossary')} className={`flex flex-col items-center justify-center gap-3 p-6 rounded-3xl border transition-all ${viewMode === 'glossary' ? 'bg-orange-600 text-white border-orange-500 shadow-lg shadow-orange-500/30' : 'bg-[#444444] border-white/5 text-slate-400 hover:text-white hover:bg-slate-800'}`}><Book size={24} /><span className="text-[11px] font-black uppercase tracking-widest bg-black/20 px-3 py-1 rounded">GLOSARIO</span></button>
+          <button onClick={() => changeViewWithSave('highlights')} className={`flex flex-col items-center justify-center gap-3 p-6 rounded-3xl border transition-all ${viewMode === 'highlights' ? 'bg-orange-600 text-white border-orange-500 shadow-lg shadow-orange-500/30' : 'bg-[#444444] border-white/5 text-slate-400 hover:text-white hover:bg-slate-800'}`}><Highlighter size={24} /><span className="text-[11px] font-black uppercase tracking-widest bg-black/20 px-3 py-1 rounded">MIS NOTAS</span></button>
         </div>
       </aside>
 
@@ -258,9 +300,13 @@ export const CourseView: React.FC<CourseViewProps> = ({
                       <h2 className="text-5xl font-black text-white mb-4 uppercase tracking-tighter">Examen Final</h2>
                       <p className="text-slate-500 font-bold uppercase tracking-widest">Pregunta {quizIndex + 1} de {allQuestions.length}</p>
                     </div>
-                    <div className="w-32 h-32 relative flex items-center justify-center">
-                      <svg className="w-full h-full transform -rotate-90"><circle cx="64" cy="64" r="50" fill="transparent" stroke="currentColor" strokeWidth="8" className="text-slate-800" /><circle cx="64" cy="64" r="50" fill="transparent" stroke="currentColor" strokeWidth="8" strokeDasharray={314} strokeDashoffset={314 - (314 * (quizIndex + 1)) / allQuestions.length} className="text-orange-500 transition-all duration-1000" /></svg>
-                      <span className="absolute text-2xl font-black text-white">{Math.round(((quizIndex + 1) / allQuestions.length) * 100)}%</span>
+                    {/* REDUCCIÓN DE TAMAÑO DEL INDICADOR DE PORCENTAJE */}
+                    <div className="w-24 h-24 relative flex items-center justify-center">
+                      <svg className="w-full h-full transform -rotate-90" viewBox="0 0 128 128">
+                        <circle cx="64" cy="64" r="50" fill="transparent" stroke="currentColor" strokeWidth="8" className="text-slate-800" />
+                        <circle cx="64" cy="64" r="50" fill="transparent" stroke="currentColor" strokeWidth="8" strokeDasharray={314} strokeDashoffset={314 - (314 * (quizIndex + 1)) / allQuestions.length} className="text-orange-500 transition-all duration-1000" />
+                      </svg>
+                      <span className="absolute text-xl font-black text-white">{Math.round(((quizIndex + 1) / allQuestions.length) * 100)}%</span>
                     </div>
                   </div>
 

@@ -241,9 +241,10 @@ export const generateCourse = async (variationTitle: string, variationDescriptio
     Instrucciones de formato:
     - Usa Markdown rico para contentMarkdown.
     - Utiliza negritas (**) para destacar términos fundamentales.
-    - Implementa listas con viñetas (•) para una lectura ágil.
+    - IMPORTANTE: No utilices listas numeradas (1., 2., 3.). Sustitúyelas SIEMPRE por listas de viñetas elegantes (•) para una lectura ágil y fluida.
     - Divide el contenido en secciones lógicas con subtítulos (##).
     - Asegura una profundidad de contenido de tipo "${depth}".
+    - PARA EL QUIZ: Genera exactamente 3 preguntas de opción múltiple por cada módulo para evaluar el aprendizaje.
     Idioma: ${language}. Genera JSON detallado.
   `;
   const response = await ai.models.generateContent({

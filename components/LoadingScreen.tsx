@@ -11,14 +11,14 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({ message }) => {
     <div className="flex flex-col items-center justify-center min-h-[50vh] animate-fade-in space-y-6">
       <div className="relative">
         <div className="absolute inset-0 bg-orange-500 blur-xl opacity-20 rounded-full animate-pulse"></div>
-        <Loader2 size={48} className="text-orange-600 animate-spin relative z-10" />
+        <Loader2 size={56} strokeWidth={3} className="text-orange-500 animate-spin relative z-10" />
       </div>
-      <div className="text-center space-y-2 max-w-md px-4">
-        <p className="text-xl font-bold text-slate-800 dark:text-slate-100 animate-pulse leading-tight">
+      <div className="text-center space-y-3 max-w-md px-4">
+        <p className="text-2xl font-black text-orange-500 animate-pulse leading-tight uppercase tracking-[0.2em]">
           {message.split('\n')[0]}
         </p>
         {message.includes('\n') && (
-           <p className="text-sm text-slate-500 dark:text-slate-400 font-medium">
+           <p className="text-sm text-orange-400/60 font-bold uppercase tracking-widest">
              {message.split('\n')[1]}
            </p>
         )}

@@ -83,11 +83,9 @@ export default function App() {
     }
   }, []);
 
-  // Efecto de guardado ultra-seguro (No guarda imágenes Base64 para evitar errores de cuota de LocalStorage)
   useEffect(() => {
     if (!currentSessionId || !topic) return;
     
-    // Limpiamos datos pesados antes de guardar en el almacenamiento del navegador (5MB límite)
     const sessionData: SavedCourse = {
       id: currentSessionId, createdAt: Date.now(), lastUpdated: Date.now(),
       step, topic, relatedTopics, pillars, selectedPillar: selectedPillar || undefined,
@@ -99,7 +97,7 @@ export default function App() {
       depth: currentDepth, completedModuleIds, userHighlights
     };
 
-    const updated = [sessionData, ...savedCourses.filter(c => c.id !== currentSessionId)].slice(0, 10);
+    const updated = [sessionData, ...savedCourses.filter(c => c.id !== currentSessionId)].slice(0, 50);
     
     try {
       localStorage.setItem('cursoapp_history', JSON.stringify(updated));
@@ -133,8 +131,9 @@ export default function App() {
   };
 
   const loadSavedStrategy = (saved: SavedCourse) => {
-    setCurrentSessionId(saved.id);
-    setTopic(saved.topic);
+    if (!saved) return;
+    setCurrentSessionId(saved.id || crypto.randomUUID());
+    setTopic(saved.topic || '');
     setRelatedTopics(saved.relatedTopics || []);
     setPillars(saved.pillars || []);
     setSelectedPillar(saved.selectedPillar || null);
@@ -144,7 +143,7 @@ export default function App() {
     setCurrentDepth(saved.depth || 'standard');
     setCompletedModuleIds(saved.completedModuleIds || []);
     setUserHighlights(saved.userHighlights || {});
-    setStep(saved.step);
+    setStep(saved.step || 'INPUT');
     setIsHistoryOpen(false);
   };
 
@@ -161,7 +160,7 @@ export default function App() {
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(sortedSavedCourses));
     const downloadAnchorNode = document.createElement('a');
     downloadAnchorNode.setAttribute("href", dataStr);
-    downloadAnchorNode.setAttribute("download", "cursoapp_estrategias.json");
+    downloadAnchorNode.setAttribute("download", `historial_cursoapp_${new Date().toISOString().split('T')[0]}.json`);
     document.body.appendChild(downloadAnchorNode);
     downloadAnchorNode.click();
     downloadAnchorNode.remove();
@@ -170,15 +169,75 @@ export default function App() {
   const handleImportHistory = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    
     const reader = new FileReader();
     reader.onload = (event) => {
       try {
-        const imported = JSON.parse(event.target?.result as string);
-        if (Array.isArray(imported)) {
-          setSavedCourses(imported);
-          localStorage.setItem('cursoapp_history', JSON.stringify(imported));
+        let content = event.target?.result as string;
+        if (!content) throw new Error("Archivo vacío");
+        
+        // Limpiar posibles caracteres invisibles al inicio/final
+        content = content.trim();
+        const importedData = JSON.parse(content);
+        
+        let normalizedList: SavedCourse[] = [];
+        
+        const processItem = (item: any): SavedCourse | null => {
+          if (!item || typeof item !== 'object') return null;
+          
+          // Estructura completa de estrategia
+          if (item.topic || (item.course && item.course.title)) {
+            return {
+              ...item,
+              id: item.id || crypto.randomUUID(),
+              lastUpdated: item.lastUpdated || Date.now(),
+              createdAt: item.createdAt || Date.now()
+            };
+          }
+          
+          // Caso: Es un curso suelto (por ejemplo, exportado de otra forma)
+          if (item.title && item.modules && Array.isArray(item.modules)) {
+            return {
+              id: crypto.randomUUID(),
+              createdAt: Date.now(),
+              lastUpdated: Date.now(),
+              step: 'COURSE',
+              topic: item.title,
+              course: item
+            };
+          }
+          
+          return null;
+        };
+
+        if (Array.isArray(importedData)) {
+          normalizedList = importedData.map(processItem).filter(i => i !== null) as SavedCourse[];
+        } else {
+          const processed = processItem(importedData);
+          if (processed) normalizedList = [processed];
         }
-      } catch (err) { alert("Archivo inválido"); }
+
+        if (normalizedList.length > 0) {
+          setSavedCourses(prev => {
+            const existingIds = new Set(prev.map(p => p.id));
+            const newOnes = normalizedList.filter(n => !existingIds.has(n.id));
+            const combined = [...newOnes, ...prev].slice(0, 50);
+            localStorage.setItem('cursoapp_history', JSON.stringify(combined));
+            return combined;
+          });
+          
+          // Cargar la primera estrategia importada automáticamente
+          loadSavedStrategy(normalizedList[0]);
+          alert(`✓ Éxito: Se han cargado ${normalizedList.length} elemento(s).`);
+        } else {
+          alert("El archivo no contiene un formato compatible con CursoAPP.");
+        }
+      } catch (err) { 
+        console.error("Fallo de importación:", err);
+        alert("Error: No se pudo leer el archivo. Asegúrate de que sea un .json válido."); 
+      } finally {
+        if (fileImportRef.current) fileImportRef.current.value = "";
+      }
     };
     reader.readAsText(file);
   };
@@ -210,7 +269,6 @@ export default function App() {
         setStep('COURSE');
         setLoading(false);
 
-        // Actualización de imágenes asíncrona pero SEGURA: actualiza solo la propiedad sin recrear todo
         c.modules.forEach(async (mod, idx) => {
           if (mod.imageDescription) {
             try {
@@ -238,7 +296,8 @@ export default function App() {
   return (
     <div className={`h-screen flex flex-col font-sans overflow-hidden transition-colors ${darkMode ? 'bg-slate-950 text-slate-200' : 'bg-slate-50 text-slate-900'}`}>
       <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} onDownloadBackup={() => {}} t={t} />
-      
+      <input type="file" ref={fileImportRef} className="hidden" accept=".json" onChange={handleImportHistory} />
+
       <header className={`h-24 px-10 mt-10 border-b flex items-center justify-between shrink-0 z-[100] rounded-t-[2.5rem] mx-6 bg-[#444444] border-white/5 shadow-2xl`}>
         <div className="flex items-center gap-12">
           <div className="flex items-center gap-4 cursor-pointer group" onClick={handleRestart}>
@@ -285,7 +344,6 @@ export default function App() {
                 <div className="flex gap-4">
                   <button onClick={handleExportHistory} className="flex-1 flex items-center justify-center gap-2 py-3 bg-slate-800 hover:bg-slate-700 text-white text-[11px] font-black uppercase rounded-xl border border-slate-700 transition-colors"><Download size={16} className="text-orange-500" /><span>Guardar PC</span></button>
                   <button onClick={() => fileImportRef.current?.click()} className="flex-1 flex items-center justify-center gap-2 py-3 bg-slate-800 hover:bg-slate-700 text-white text-[11px] font-black uppercase rounded-xl border border-slate-700 transition-colors"><Upload size={16} className="text-orange-500" /><span>Cargar PC</span></button>
-                  <input type="file" ref={fileImportRef} className="hidden" accept=".json" onChange={handleImportHistory} />
                 </div>
               </div>
               <div className="max-h-[400px] overflow-y-auto custom-scrollbar">
@@ -324,7 +382,9 @@ export default function App() {
                 {step === 'COURSE' && (
                   course ? (
                     <CourseView 
-                      course={course} language={language} onBack={() => setStep('VARIATIONS')} t={t} searchTerm={searchTerm} 
+                      course={course}
+                      pillarTitle={selectedPillar?.title || ''}
+                      language={language} onBack={() => setStep('VARIATIONS')} t={t} searchTerm={searchTerm} 
                       completedModuleIds={completedModuleIds} userHighlights={userHighlights} 
                       onToggleModule={(id) => setCompletedModuleIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])} 
                       onUpdateHighlights={(id, h) => setUserHighlights(prev => ({ ...prev, [id]: h }))} 

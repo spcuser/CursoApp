@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { Pillar, TranslationDictionary } from '../types';
-import { Target, ArrowRight, Layers, Sparkles, Zap, ChevronRight } from 'lucide-react';
+import { Target, ArrowRight, Folder, Sparkles, Zap, ChevronRight } from 'lucide-react';
 
 interface PillarSelectionProps {
   topic: string;
@@ -24,9 +24,7 @@ export const PillarSelection: React.FC<PillarSelectionProps> = ({
   searchTerm 
 }) => {
   const suggestedTopics = useMemo(() => {
-    return [...relatedTopics]
-      .sort(() => 0.5 - Math.random())
-      .slice(0, 4);
+    return [...relatedTopics].slice(0, 4);
   }, [relatedTopics]);
 
   const highlightMatch = (text: string) => {
@@ -59,7 +57,6 @@ export const PillarSelection: React.FC<PillarSelectionProps> = ({
         </p>
       </div>
 
-      {/* MARGEN DE 30PX SOLICITADO ENTRE ENCABEZADO Y CONTENIDO */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-[19px] mt-[30px]">
         {pillars.map((pillar) => (
           <div key={pillar.id} className="relative group flex flex-col h-full">
@@ -71,7 +68,7 @@ export const PillarSelection: React.FC<PillarSelectionProps> = ({
                 <ArrowRight size={28} />
               </div>
               <div className="w-14 h-14 bg-white/5 rounded-2xl flex items-center justify-center text-orange-500 group-hover:bg-orange-600 group-hover:text-white transition-all mb-6 shrink-0 shadow-inner">
-                <Layers size={28} />
+                <Folder size={28} />
               </div>
               <h3 className="text-xl font-black text-white mb-3 group-hover:text-orange-500 transition-colors pr-6 leading-tight">
                 {highlightMatch(pillar.title)}

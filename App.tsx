@@ -22,7 +22,7 @@ import { LoadingScreen } from './components/LoadingScreen';
 import { SettingsModal } from './components/SettingsModal';
 import { Sidebar } from './components/Sidebar';
 import { 
-  BrainCircuit, ChevronDown, Settings, Sun, Moon, Search, X, History, Trash2, Clock, Folder, FileText, ChevronRight, Upload, Download, Maximize, Minimize
+  Folder, BrainCircuit, ChevronDown, Settings, Sun, Moon, Search, X, History, Trash2, Clock, FileText, ChevronRight, Upload, Download, Maximize, Minimize
 } from 'lucide-react';
 
 const TRANSLATIONS: Record<string, TranslationDictionary> = {
@@ -67,6 +67,10 @@ export default function App() {
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   const t = TRANSLATIONS[language];
+
+  const sortedSavedCourses = useMemo(() => {
+    return [...savedCourses].sort((a, b) => b.lastUpdated - a.lastUpdated);
+  }, [savedCourses]);
 
   useEffect(() => {
     const stored = localStorage.getItem('cursoapp_history');
@@ -136,7 +140,7 @@ export default function App() {
   };
 
   const handleExportHistory = () => {
-    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(savedCourses));
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(sortedSavedCourses));
     const downloadAnchorNode = document.createElement('a');
     downloadAnchorNode.setAttribute("href", dataStr);
     downloadAnchorNode.setAttribute("download", "cursoapp_estrategias.json");
@@ -180,6 +184,10 @@ export default function App() {
   };
 
   const handleVariationSelect = async (v: Variation, d: CourseDepth) => {
+    if (course && selectedVariation?.id === v.id && currentDepth === d) {
+      setStep('COURSE');
+      return;
+    }
     setSelectedVariation(v); setCurrentDepth(d); setLoading(true); setLoadingMessage(t.loading.building);
     try {
       const c = await generateCourse(v.title, v.description, topic, d, language);
@@ -210,7 +218,6 @@ export default function App() {
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
-            {/* BOTÓN X - ALTA VISIBILIDAD REFORZADO */}
             {searchTerm && (
               <button 
                 onClick={() => setSearchTerm('')}
@@ -233,14 +240,13 @@ export default function App() {
         </nav>
 
         <div className="flex items-center gap-8 relative" ref={dropdownRef}>
-          {/* BOTÓN MIS ESTRATEGIAS RESTAURADO */}
+          {/* BOTÓN DE CARPETA COMPACTO CON TOOLTIP */}
           <button 
             onClick={() => setIsHistoryOpen(!isHistoryOpen)}
-            className={`flex items-center gap-3 px-8 py-4 rounded-xl text-sm font-black uppercase tracking-widest transition-all bg-orange-600 text-white hover:bg-orange-700 shadow-xl shadow-orange-600/30 active:scale-95`}
+            title="MIS ESTRATEGIAS"
+            className={`w-14 h-14 rounded-xl flex items-center justify-center transition-all bg-orange-600 text-white hover:bg-orange-700 shadow-xl shadow-orange-600/30 active:scale-90`}
           >
-            <Folder size={20} />
-            <span>MIS ESTRATEGIAS</span>
-            <ChevronDown size={16} className={`transition-transform duration-300 ${isHistoryOpen ? 'rotate-180' : ''}`} />
+            <Folder size={24} />
           </button>
 
           {isHistoryOpen && (
@@ -265,10 +271,10 @@ export default function App() {
                 </div>
               </div>
               <div className="max-h-[400px] overflow-y-auto custom-scrollbar">
-                {savedCourses.length === 0 ? (
+                {sortedSavedCourses.length === 0 ? (
                   <p className="p-16 text-center text-slate-500 italic font-medium">No hay estrategias guardadas aún.</p>
                 ) : (
-                  savedCourses.map(saved => (
+                  sortedSavedCourses.map(saved => (
                     <div key={saved.id} onClick={() => loadSavedStrategy(saved)} className="flex items-center justify-between p-7 border-b border-slate-800 hover:bg-slate-800/40 cursor-pointer group transition-all">
                       <div className="flex items-center gap-5 min-w-0">
                         <div className="w-12 h-12 bg-orange-600/10 text-orange-500 rounded-xl flex items-center justify-center group-hover:bg-orange-600 group-hover:text-white transition-all shadow-inner">
@@ -277,7 +283,7 @@ export default function App() {
                         <div className="min-w-0">
                           <p className="text-white font-black truncate leading-tight mb-1">{saved.topic}</p>
                           <p className="text-[10px] text-slate-500 flex items-center gap-2 uppercase font-bold tracking-wider">
-                            <Clock size={12}/>{new Date(saved.createdAt).toLocaleDateString()}
+                            <Clock size={12}/>{new Date(saved.lastUpdated).toLocaleDateString()}
                           </p>
                         </div>
                       </div>
@@ -295,7 +301,6 @@ export default function App() {
           )}
 
           <div className="flex items-center gap-6 pl-8 border-l border-white/10">
-            {/* BOTÓN PANTALLA COMPLETA RESTAURADO */}
             <button 
               onClick={toggleFullscreen} 
               className="text-slate-400 hover:text-white transition-all p-2 rounded-lg hover:bg-white/5" 
@@ -310,7 +315,6 @@ export default function App() {
       </header>
 
       <div className="flex-1 flex overflow-hidden">
-        {/* MARGEN SUPERIOR DE 40PX (pt-10) PARA EL CONTENIDO */}
         <main className={`flex-1 overflow-y-auto pt-10 ${darkMode ? 'bg-[#0a0f1d]' : 'bg-slate-50'}`}>
           <div className="max-w-screen-2xl mx-auto min-h-full">
             {loading ? (
@@ -348,7 +352,7 @@ export default function App() {
             selectedVariation={selectedVariation} 
             course={course} 
             onSelectPillar={handlePillarSelect} 
-            onSelectVariation={(v) => handleVariationSelect(v, 'standard')} 
+            onSelectVariation={(v) => handleVariationSelect(v, currentDepth)} 
             isVisible={true} 
             mobileOpen={false} 
             onCloseMobile={() => {}} 

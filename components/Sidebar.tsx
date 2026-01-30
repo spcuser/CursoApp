@@ -28,8 +28,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
       
       <div className="p-8 bg-[#444444] border border-white/5 rounded-[2rem] mb-10 group hover:border-orange-500 transition-all shadow-2xl mx-[5px]">
         <Folder size={24} className="text-orange-500 mb-6" />
-        <p className="text-sm font-black text-white uppercase leading-relaxed tracking-tight">
-          {topic || "SIN TEMA"}
+        <p className="text-sm font-black text-white leading-relaxed tracking-tight">
+          {topic || "Sin tema"}
         </p>
       </div>
 

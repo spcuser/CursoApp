@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Course, TranslationDictionary, GlossaryTerm, QuizQuestion, CourseModule } from '../types';
 import { 
-  Book, Highlighter, Star, Hash, ArrowLeft, PlusCircle, Trash2, XCircle, Trophy, ClipboardCheck, ArrowRight, RotateCcw, CornerUpLeft, Image as ImageIcon, AlertCircle, ChevronRight, Save, CheckCircle2
+  Book, Highlighter, Star, Hash, ArrowLeft, PlusCircle, Trash2, XCircle, Trophy, ClipboardCheck, ArrowRight, RotateCcw, CornerUpLeft, Image as ImageIcon, AlertCircle, ChevronRight, Save, CheckCircle2, X, ZoomIn
 } from 'lucide-react';
 
 interface CourseViewProps {
@@ -102,6 +102,7 @@ export const CourseView: React.FC<CourseViewProps> = ({
   const [selectionBox, setSelectionBox] = useState<{ x: number, y: number, text: string } | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [expandedImage, setExpandedImage] = useState<string | null>(null);
   
   const contentRef = useRef<HTMLDivElement>(null);
   
@@ -130,6 +131,15 @@ export const CourseView: React.FC<CourseViewProps> = ({
     prevViewModeRef.current = viewMode;
     prevModuleIdRef.current = activeModuleId;
   }, [activeModuleId, viewMode]);
+
+  // Manejador para cerrar imagen con tecla ESC
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setExpandedImage(null);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   const activeModule: CourseModule | undefined = course?.modules?.find(m => m.id === activeModuleId) || course?.modules?.[0];
 
@@ -249,6 +259,26 @@ export const CourseView: React.FC<CourseViewProps> = ({
 
   return (
     <div className="flex h-full w-full overflow-hidden" onMouseUp={handleMouseUp}>
+      {/* Lightbox / Modal de Imagen Expandida */}
+      {expandedImage && (
+        <div 
+          className="fixed inset-0 z-[1000] bg-black/95 backdrop-blur-md flex items-center justify-center p-4 md:p-12 cursor-zoom-out animate-fade-in"
+          onClick={() => setExpandedImage(null)}
+        >
+          <button 
+            className="absolute top-10 right-10 text-white hover:text-orange-500 transition-all bg-white/10 p-4 rounded-full hover:scale-110 active:scale-90 border border-white/20 z-10 shadow-2xl"
+            onClick={() => setExpandedImage(null)}
+          >
+            <X size={32} />
+          </button>
+          <img 
+            src={expandedImage} 
+            alt="Expanded view" 
+            className="max-w-full max-h-full object-contain rounded-2xl shadow-[0_0_100px_rgba(0,0,0,1)] animate-fade-in-up transition-transform cursor-zoom-out"
+          />
+        </div>
+      )}
+
       <aside className="w-[440px] border-r border-slate-900 bg-slate-950 flex flex-col p-8 overflow-y-auto shrink-0">
         <h3 className="text-[12px] font-black text-slate-500 uppercase tracking-[0.4em] mb-8">CONTENIDO</h3>
         <div className="space-y-[19px] flex-1">
@@ -325,7 +355,7 @@ export const CourseView: React.FC<CourseViewProps> = ({
                       <ChevronRight size={10} className="text-slate-600" />
                       <span className="text-slate-500">Estrategia</span>
                     </div>
-                    <h2 className="text-2xl font-black text-white tracking-tight uppercase leading-tight max-w-2xl">{cleanMarkdown(course.title)}</h2>
+                    <h2 className="text-2xl font-black text-white tracking-tight leading-tight max-w-2xl">{cleanMarkdown(course.title)}</h2>
                   </div>
                   
                   {onSaveCurrent && (
@@ -363,17 +393,27 @@ export const CourseView: React.FC<CourseViewProps> = ({
                        <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest opacity-50">Visualización • AI Generated</span>
                     </div>
                   </div>
-                  <div className="relative overflow-hidden border-x border-b border-white/10 rounded-b-xl shadow-[0_40px_100px_rgba(0,0,0,0.6)] bg-slate-900/50 flex items-center justify-center min-h-[250px]">
+                  <div 
+                    onClick={() => activeModule.imageUrl && setExpandedImage(activeModule.imageUrl)}
+                    className="relative overflow-hidden border-x border-b border-white/10 rounded-b-xl shadow-[0_40px_100px_rgba(0,0,0,0.6)] bg-slate-900/50 flex items-center justify-center min-h-[250px] cursor-zoom-in"
+                  >
                     {activeModule.imageUrl ? (
-                      <img 
-                        src={activeModule.imageUrl} 
-                        alt={activeModule.title} 
-                        className="w-full h-auto object-cover hover:scale-105 transition-transform duration-1000" 
-                        onError={(e) => {
-                          const target = e.target as HTMLImageElement;
-                          target.style.display = 'none';
-                        }}
-                      />
+                      <>
+                        <img 
+                          src={activeModule.imageUrl} 
+                          alt={activeModule.title} 
+                          className="w-full h-auto object-cover hover:scale-105 transition-transform duration-1000" 
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement;
+                            target.style.display = 'none';
+                          }}
+                        />
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all flex items-center justify-center opacity-0 group-hover:opacity-100">
+                          <div className="bg-orange-600 p-4 rounded-full text-white shadow-2xl scale-50 group-hover:scale-100 transition-all">
+                            <ZoomIn size={32} />
+                          </div>
+                        </div>
+                      </>
                     ) : (
                       <div className="flex flex-col items-center gap-3 text-slate-700 animate-pulse">
                         <ImageIcon size={40} />

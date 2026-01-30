@@ -74,6 +74,14 @@ export default function App() {
   }, [savedCourses]);
 
   useEffect(() => {
+    const handleFsChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener('fullscreenchange', handleFsChange);
+    return () => document.removeEventListener('fullscreenchange', handleFsChange);
+  }, []);
+
+  useEffect(() => {
     const stored = localStorage.getItem('cursoapp_history');
     if (stored) {
       try { 
@@ -116,12 +124,17 @@ export default function App() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  /**
+   * RESTAURACIÓN: MODO PANTALLA COMPLETA NATIVO
+   */
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen().catch(() => {});
+      document.documentElement.requestFullscreen().catch((err) => {
+        console.error(`Error al intentar activar pantalla completa: ${err.message}`);
+      });
       setIsFullscreen(true);
     } else {
-      document.exitFullscreen().catch(() => {});
+      document.exitFullscreen();
       setIsFullscreen(false);
     }
   };
@@ -166,6 +179,50 @@ export default function App() {
     downloadAnchorNode.remove();
   };
 
+  const handleExportCurrentStrategy = async () => {
+    if (!currentSessionId || !topic) return;
+    
+    const sessionData: SavedCourse = {
+      id: currentSessionId, 
+      createdAt: Date.now(), 
+      lastUpdated: Date.now(),
+      step, topic, relatedTopics, pillars, selectedPillar: selectedPillar || undefined,
+      variations, selectedVariation: selectedVariation || undefined, 
+      course: course || undefined,
+      depth: currentDepth, completedModuleIds, userHighlights
+    };
+
+    const jsonString = JSON.stringify(sessionData, null, 2);
+    const fileName = `estrategia_${topic.toLowerCase().replace(/\s+/g, '_')}.json`;
+
+    if ('showSaveFilePicker' in window) {
+      try {
+        const handle = await (window as any).showSaveFilePicker({
+          suggestedName: fileName,
+          types: [{
+            description: 'Archivo de Estrategia JSON',
+            accept: {'application/json': ['.json']},
+          }],
+        });
+        const writable = await handle.createWritable();
+        await writable.write(jsonString);
+        await writable.close();
+        return;
+      } catch (err: any) {
+        if (err.name === 'AbortError') return;
+        console.warn("Fallo showSaveFilePicker, recurriendo a descarga tradicional", err);
+      }
+    }
+
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(jsonString);
+    const downloadAnchorNode = document.createElement('a');
+    downloadAnchorNode.setAttribute("href", dataStr);
+    downloadAnchorNode.setAttribute("download", fileName);
+    document.body.appendChild(downloadAnchorNode);
+    downloadAnchorNode.click();
+    downloadAnchorNode.remove();
+  };
+
   const handleImportHistory = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -176,7 +233,6 @@ export default function App() {
         let content = event.target?.result as string;
         if (!content) throw new Error("Archivo vacío");
         
-        // Limpiar posibles caracteres invisibles al inicio/final
         content = content.trim();
         const importedData = JSON.parse(content);
         
@@ -184,8 +240,6 @@ export default function App() {
         
         const processItem = (item: any): SavedCourse | null => {
           if (!item || typeof item !== 'object') return null;
-          
-          // Estructura completa de estrategia
           if (item.topic || (item.course && item.course.title)) {
             return {
               ...item,
@@ -194,8 +248,6 @@ export default function App() {
               createdAt: item.createdAt || Date.now()
             };
           }
-          
-          // Caso: Es un curso suelto (por ejemplo, exportado de otra forma)
           if (item.title && item.modules && Array.isArray(item.modules)) {
             return {
               id: crypto.randomUUID(),
@@ -206,7 +258,6 @@ export default function App() {
               course: item
             };
           }
-          
           return null;
         };
 
@@ -225,15 +276,11 @@ export default function App() {
             localStorage.setItem('cursoapp_history', JSON.stringify(combined));
             return combined;
           });
-          
-          // Cargar la primera estrategia importada automáticamente
           loadSavedStrategy(normalizedList[0]);
-          alert(`✓ Éxito: Se han cargado ${normalizedList.length} elemento(s).`);
         } else {
           alert("El archivo no contiene un formato compatible con CursoAPP.");
         }
       } catch (err) { 
-        console.error("Fallo de importación:", err);
         alert("Error: No se pudo leer el archivo. Asegúrate de que sea un .json válido."); 
       } finally {
         if (fileImportRef.current) fileImportRef.current.value = "";
@@ -263,12 +310,8 @@ export default function App() {
     setSelectedVariation(v); setCurrentDepth(d); setLoading(true); setLoadingMessage(t.loading.building);
     try {
       const c = await generateCourse(v.title, v.description, topic, d, language);
-      
       if (c && c.modules && Array.isArray(c.modules) && c.modules.length > 0) {
-        setCourse(c); 
-        setStep('COURSE');
-        setLoading(false);
-
+        setCourse(c); setStep('COURSE'); setLoading(false);
         c.modules.forEach(async (mod, idx) => {
           if (mod.imageDescription) {
             try {
@@ -281,24 +324,21 @@ export default function App() {
                   return { ...prev, modules: updatedModules };
                 });
               }
-            } catch (err) { console.error("Fallo imagen en módulo", idx); }
+            } catch (err) {}
           }
         });
-      } else {
-        throw new Error("Curso vacío");
-      }
-    } catch (e) { 
-      setLoading(false);
-      alert('Error al construir el curso.'); 
-    }
+      } else { throw new Error("Curso vacío"); }
+    } catch (e) { setLoading(false); alert('Error al construir el curso.'); }
   };
 
   return (
-    <div className={`h-screen flex flex-col font-sans overflow-hidden transition-colors ${darkMode ? 'bg-slate-950 text-slate-200' : 'bg-slate-50 text-slate-900'}`}>
+    <div className={`h-screen flex flex-col font-sans overflow-hidden transition-all ${darkMode ? 'bg-slate-950 text-slate-200' : 'bg-slate-50 text-slate-900'}`}>
       <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} onDownloadBackup={() => {}} t={t} />
       <input type="file" ref={fileImportRef} className="hidden" accept=".json" onChange={handleImportHistory} />
 
-      <header className={`h-24 px-10 mt-10 border-b flex items-center justify-between shrink-0 z-[100] rounded-t-[2.5rem] mx-6 bg-[#444444] border-white/5 shadow-2xl`}>
+      <header className={`h-24 px-10 border-b flex items-center justify-between shrink-0 z-[100] transition-all
+        ${isFullscreen ? 'rounded-none mx-0 mt-0' : 'rounded-t-[2.5rem] mx-6 mt-10'} 
+        bg-[#444444] border-white/5 shadow-2xl`}>
         <div className="flex items-center gap-12">
           <div className="flex items-center gap-4 cursor-pointer group" onClick={handleRestart}>
             <div className="w-12 h-12 bg-orange-600 rounded-xl flex items-center justify-center text-white shadow-xl shadow-orange-600/30 group-hover:scale-105 transition-transform">
@@ -362,15 +402,17 @@ export default function App() {
             </div>
           )}
           <div className="flex items-center gap-6 pl-8 border-l border-white/10">
-            <button onClick={toggleFullscreen} className="text-slate-400 hover:text-white transition-all p-2 rounded-lg hover:bg-white/5">{isFullscreen ? <Minimize size={26} /> : <Maximize size={26} />}</button>
+            <button onClick={toggleFullscreen} title={isFullscreen ? "Restaurar" : "Maximizar"} className="text-slate-400 hover:text-white transition-all p-2 rounded-lg hover:bg-white/5">
+              {isFullscreen ? <Minimize size={26} /> : <Maximize size={26} />}
+            </button>
             <button onClick={() => setDarkMode(!darkMode)} className="text-slate-400 hover:text-white transition-all p-2 rounded-lg hover:bg-white/5">{darkMode ? <Sun size={26} /> : <Moon size={26} />}</button>
             <button onClick={() => setIsSettingsOpen(true)} className="text-slate-400 hover:text-white transition-all p-2 rounded-lg hover:bg-white/5"><Settings size={26} /></button>
           </div>
         </div>
       </header>
 
-      <div className="flex-1 flex overflow-hidden">
-        <main className={`flex-1 overflow-y-auto pt-10 ${darkMode ? 'bg-[#0a0f1d]' : 'bg-slate-50'}`}>
+      <div className={`flex-1 flex overflow-hidden transition-all ${isFullscreen ? 'p-0' : 'pb-6'}`}>
+        <main className={`flex-1 overflow-y-auto pt-10 ${darkMode ? 'bg-[#0a0f1d]' : 'bg-slate-50'} transition-all ${isFullscreen ? 'rounded-none' : 'rounded-b-[2.5rem] mx-6 shadow-inner border-x border-b border-white/5'}`}>
           <div className="max-w-screen-2xl mx-auto min-h-full pb-20">
             {loading ? (
               <LoadingScreen message={loadingMessage} />
@@ -389,6 +431,7 @@ export default function App() {
                       onToggleModule={(id) => setCompletedModuleIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])} 
                       onUpdateHighlights={(id, h) => setUserHighlights(prev => ({ ...prev, [id]: h }))} 
                       onGenerateEbook={() => {}} 
+                      onSaveCurrent={handleExportCurrentStrategy}
                     />
                   ) : (
                     <div className="flex flex-col items-center justify-center h-full text-center space-y-8 animate-fade-in py-20">

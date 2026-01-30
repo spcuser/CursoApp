@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Course, TranslationDictionary, GlossaryTerm, QuizQuestion, CourseModule } from '../types';
 import { 
-  Book, Highlighter, Star, Hash, ArrowLeft, PlusCircle, Trash2, XCircle, Trophy, ClipboardCheck, ArrowRight, RotateCcw, CornerUpLeft, Image as ImageIcon, AlertCircle, ChevronRight
+  Book, Highlighter, Star, Hash, ArrowLeft, PlusCircle, Trash2, XCircle, Trophy, ClipboardCheck, ArrowRight, RotateCcw, CornerUpLeft, Image as ImageIcon, AlertCircle, ChevronRight, Save, CheckCircle2
 } from 'lucide-react';
 
 interface CourseViewProps {
@@ -17,6 +17,7 @@ interface CourseViewProps {
   onUpdateHighlights: (moduleId: string, highlights: string[]) => void;
   onGenerateEbook: () => void;
   language: string;
+  onSaveCurrent?: () => Promise<void>;
 }
 
 const cleanMarkdown = (text: string = '') => {
@@ -93,12 +94,14 @@ const TextProcessor: React.FC<{
 };
 
 export const CourseView: React.FC<CourseViewProps> = ({ 
-  course, pillarTitle, t, searchTerm, completedModuleIds, userHighlights = {}, onToggleModule, onUpdateHighlights
+  course, pillarTitle, t, searchTerm, completedModuleIds, userHighlights = {}, onToggleModule, onUpdateHighlights, onSaveCurrent
 }) => {
   const [activeModuleId, setActiveModuleId] = useState<string>(course?.modules?.[0]?.id || '');
   const [viewMode, setViewMode] = useState<'module' | 'glossary' | 'highlights' | 'quiz'>('module');
   const [selectedGlossaryTerm, setSelectedGlossaryTerm] = useState<string | null>(null);
   const [selectionBox, setSelectionBox] = useState<{ x: number, y: number, text: string } | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
   
   const contentRef = useRef<HTMLDivElement>(null);
   
@@ -161,6 +164,20 @@ export const CourseView: React.FC<CourseViewProps> = ({
       const range = selection.getRangeAt(0);
       const rect = range.getBoundingClientRect();
       setSelectionBox({ x: rect.left + rect.width / 2, y: rect.top - 60, text });
+    }
+  };
+
+  const handleSave = async () => {
+    if (!onSaveCurrent || isSaving) return;
+    setIsSaving(true);
+    try {
+      await onSaveCurrent();
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 2000);
+    } catch (e) {
+      console.error("Error al guardar", e);
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -301,14 +318,33 @@ export const CourseView: React.FC<CourseViewProps> = ({
           <div className="max-w-4xl mx-auto space-y-16">
             {viewMode === 'module' ? (
               <>
-                {/* Cabecera del Curso Optimizada - Breadcrumb y Título compacto */}
-                <div className="text-center space-y-3 animate-fade-in-up border-b border-white/5 pb-8">
-                  <div className="flex items-center justify-center gap-3 text-[10px] font-black text-orange-500 uppercase tracking-[0.3em] opacity-80">
-                    <span>{cleanMarkdown(pillarTitle)}</span>
-                    <ChevronRight size={10} className="text-slate-600" />
-                    <span className="text-slate-500">Estrategia</span>
+                <div className="flex items-center justify-between border-b border-white/5 pb-8 animate-fade-in-up">
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-3 text-[10px] font-black text-orange-500 uppercase tracking-[0.3em] opacity-80">
+                      <span>{cleanMarkdown(pillarTitle)}</span>
+                      <ChevronRight size={10} className="text-slate-600" />
+                      <span className="text-slate-500">Estrategia</span>
+                    </div>
+                    <h2 className="text-2xl font-black text-white tracking-tight uppercase leading-tight max-w-2xl">{cleanMarkdown(course.title)}</h2>
                   </div>
-                  <h2 className="text-2xl font-black text-white tracking-tight uppercase leading-tight max-w-2xl mx-auto">{cleanMarkdown(course.title)}</h2>
+                  
+                  {onSaveCurrent && (
+                    <button 
+                      onClick={handleSave}
+                      disabled={isSaving}
+                      title="Actualizar Archivo Original (Sobrescribir)"
+                      className={`group relative flex flex-col items-center gap-2 p-5 rounded-[1.5rem] transition-all shadow-xl active:scale-90 ${saveSuccess ? 'bg-emerald-600 shadow-emerald-500/40' : 'bg-orange-600/10 hover:bg-orange-600 border border-orange-500/30 hover:shadow-orange-500/40'}`}
+                    >
+                      {saveSuccess ? (
+                        <CheckCircle2 size={32} className="text-white animate-bounce" />
+                      ) : (
+                        <Save size={32} className={`transition-colors ${isSaving ? 'animate-pulse text-orange-500' : 'text-orange-500 group-hover:text-white'}`} />
+                      )}
+                      <span className={`text-[9px] font-black uppercase tracking-widest transition-colors ${saveSuccess ? 'text-white' : 'text-orange-400 group-hover:text-white'}`}>
+                        {saveSuccess ? 'Guardado' : isSaving ? 'Guardando...' : 'Actualizar'}
+                      </span>
+                    </button>
+                  )}
                 </div>
 
                 <div className="p-10 bg-orange-600 rounded-[2.5rem] text-white shadow-2xl flex flex-col items-center text-center space-y-6">
@@ -316,7 +352,6 @@ export const CourseView: React.FC<CourseViewProps> = ({
                   <p className="text-2xl font-medium leading-[1.4]">{cleanMarkdown(activeModule.keyTakeaway)}</p>
                 </div>
 
-                {/* Renderizado Seguro de Imagen */}
                 <div className="relative group animate-fade-in-up min-h-[100px] flex flex-col">
                   <div className="bg-slate-800 rounded-t-xl p-3 flex items-center gap-2 border-x border-t border-white/10 shadow-2xl">
                     <div className="flex gap-1.5">

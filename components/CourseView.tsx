@@ -38,8 +38,9 @@ const TextProcessor: React.FC<{
   onTermClick: (term: string) => void, 
   onRemoveHighlight: (text: string) => void,
   searchTerm?: string, 
-  userHighlights: string[]
-}> = ({ text = '', glossary = [], onTermClick, onRemoveHighlight, searchTerm, userHighlights = [] }) => {
+  userHighlights: string[],
+  isKeyTakeaway?: boolean
+}> = ({ text = '', glossary = [], onTermClick, onRemoveHighlight, searchTerm, userHighlights = [], isKeyTakeaway = false }) => {
   const cleanText = cleanMarkdown(text);
   if (!cleanText) return null;
 
@@ -66,11 +67,20 @@ const TextProcessor: React.FC<{
         const isSearchMatch = searchTerm && lowerPart === searchTerm.trim().toLowerCase();
 
         if (isUserHighlight || isSearchMatch) {
+          // Si es el recuadro naranja (isKeyTakeaway), usamos Azul Marino strictly.
+          const bgColor = isKeyTakeaway ? '#000080' : (isUserHighlight ? '#f97316' : '#ea580c');
+          const textColor = 'white';
+
           return (
             <mark 
               key={i} 
               onClick={() => isUserHighlight && onRemoveHighlight(part)}
-              className={`px-1.5 py-0.5 rounded-md font-bold shadow-lg shadow-orange-500/20 cursor-pointer transition-all ${isUserHighlight ? 'bg-orange-500 text-white hover:bg-rose-500 hover:shadow-rose-500/40 group/mark relative' : 'bg-orange-600 text-white'}`}
+              className={`px-1.5 py-0.5 rounded-md font-bold cursor-pointer transition-all group/mark relative`}
+              style={{ 
+                backgroundColor: bgColor, 
+                color: textColor,
+                boxShadow: isKeyTakeaway ? '0 4px 12px rgba(0,0,128,0.4)' : '0 4px 12px rgba(249,115,22,0.4)' 
+              }}
             >
               {part}
               {isUserHighlight && (
@@ -115,6 +125,7 @@ export const CourseView: React.FC<CourseViewProps> = ({
   const [quizAnswers, setQuizAnswers] = useState<number[]>([]);
   const [quizFinished, setQuizFinished] = useState(false);
   const [selectedOption, setSelectedOption] = useState<number | null>(null);
+  const [resetCounter, setResetCounter] = useState(0);
 
   useEffect(() => {
     const container = contentRef.current;
@@ -163,6 +174,15 @@ export const CourseView: React.FC<CourseViewProps> = ({
     return (course?.modules || []).flatMap(m => m.quiz || []);
   }, [course?.modules]);
 
+  // RANDOMIZED OPTIONS
+  const currentShuffledOptions = useMemo(() => {
+    const currentQ = allQuestions[quizIndex];
+    if (!currentQ) return [];
+    return currentQ.options
+      .map((text, originalIndex) => ({ text, originalIndex }))
+      .sort(() => Math.random() - 0.5);
+  }, [quizIndex, resetCounter, allQuestions]);
+
   const handleMouseUp = () => {
     const selection = window.getSelection();
     if (!selection || selection.isCollapsed) {
@@ -210,10 +230,13 @@ export const CourseView: React.FC<CourseViewProps> = ({
     onUpdateHighlights(activeModule.id, []);
   };
 
-  const handleQuizAnswer = (optionIdx: number) => {
+  const handleQuizAnswer = (shuffledIdx: number) => {
     if (selectedOption !== null) return;
-    setSelectedOption(optionIdx);
-    const newAnswers = [...quizAnswers, optionIdx];
+    const originalIdx = currentShuffledOptions[shuffledIdx].originalIndex;
+    setSelectedOption(shuffledIdx);
+    
+    // Almacenamos el índice original para validación de puntaje
+    const newAnswers = [...quizAnswers, originalIdx];
     setQuizAnswers(newAnswers);
 
     setTimeout(() => {
@@ -221,7 +244,7 @@ export const CourseView: React.FC<CourseViewProps> = ({
         setQuizIndex(quizIndex + 1);
         setSelectedOption(null);
       } else {
-        const correctOnes = newAnswers.filter((a, i) => a === allQuestions[i].correctAnswerIndex).length;
+        const correctOnes = newAnswers.filter((originalAns, i) => originalAns === allQuestions[i].correctAnswerIndex).length;
         if (onQuizFinish) onQuizFinish(correctOnes, allQuestions.length);
         setQuizFinished(true);
       }
@@ -233,6 +256,7 @@ export const CourseView: React.FC<CourseViewProps> = ({
     setQuizAnswers([]);
     setQuizFinished(false);
     setSelectedOption(null);
+    setResetCounter(prev => prev + 1); // Trigger re-shuffle
   };
 
   const handleTermClick = (term: string) => {
@@ -380,7 +404,17 @@ export const CourseView: React.FC<CourseViewProps> = ({
 
                 <div className="p-10 bg-orange-600 rounded-[2.5rem] text-white shadow-2xl flex flex-col items-center text-center space-y-6">
                   <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.2em] opacity-90"><Star size={16} fill="currentColor" /><span>{t.course.keyTakeaway}</span></div>
-                  <p className="text-2xl font-medium leading-[1.4]">{cleanMarkdown(activeModule.keyTakeaway)}</p>
+                  <div className="text-2xl font-medium leading-[1.4] select-text">
+                    <TextProcessor 
+                      text={activeModule.keyTakeaway} 
+                      glossary={course?.glossary || []} 
+                      onTermClick={handleTermClick} 
+                      onRemoveHighlight={removeHighlight} 
+                      searchTerm={searchTerm} 
+                      userHighlights={moduleHighlights}
+                      isKeyTakeaway={true}
+                    />
+                  </div>
                 </div>
 
                 <div className="relative group animate-fade-in-up min-h-[100px] flex flex-col">
@@ -457,13 +491,13 @@ export const CourseView: React.FC<CourseViewProps> = ({
                     <div className="bg-[#444444] p-12 rounded-[2.5rem] border border-white/5 shadow-2xl space-y-10">
                       <p className="text-2xl font-bold text-white leading-snug">{allQuestions[quizIndex]?.question}</p>
                       <div className="grid grid-cols-1 gap-5">
-                        {(allQuestions[quizIndex]?.options || []).map((opt, i) => {
+                        {currentShuffledOptions.map((optObj, i) => {
                           const isSelected = selectedOption === i;
-                          const isCorrect = i === allQuestions[quizIndex].correctAnswerIndex;
+                          const isCorrect = optObj.originalIndex === allQuestions[quizIndex].correctAnswerIndex;
                           const bgColor = isSelected ? (isCorrect ? 'bg-emerald-600 border-emerald-400' : 'bg-rose-600 border-rose-400') : 'bg-black/20 border-white/10 hover:border-orange-500 hover:bg-white/5';
                           return (
                             <button key={i} onClick={() => handleQuizAnswer(i)} className={`p-6 rounded-2xl border transition-all text-left text-lg font-medium flex items-center justify-between group ${bgColor}`}>
-                              <span className={isSelected ? 'text-white' : 'text-slate-300 group-hover:text-white'}>{opt}</span>
+                              <span className={isSelected ? 'text-white' : 'text-slate-300 group-hover:text-white'}>{optObj.text}</span>
                               {isSelected && (isCorrect ? <Trophy size={20} /> : <RotateCcw size={20} />)}
                             </button>
                           );
@@ -479,7 +513,7 @@ export const CourseView: React.FC<CourseViewProps> = ({
                       <p className="text-2xl text-slate-400 font-medium max-w-2xl mx-auto">Has completado el curso con éxito.</p>
                     </div>
                     <div className="bg-white text-slate-950 px-12 py-8 rounded-[2rem] text-7xl font-black shadow-2xl">
-                      {quizAnswers.filter((a, i) => a === allQuestions[i].correctAnswerIndex).length} / {allQuestions.length}
+                      {quizAnswers.filter((ansIndex, i) => ansIndex === allQuestions[i].correctAnswerIndex).length} / {allQuestions.length}
                     </div>
                     <div className="flex gap-4">
                       <button onClick={resetQuiz} className="flex items-center gap-3 px-10 py-5 bg-[#444444] text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-700 transition-all"><RotateCcw size={20} /><span>Reintentar</span></button>

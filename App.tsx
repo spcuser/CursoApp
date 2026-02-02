@@ -297,6 +297,12 @@ export default function App() {
   };
 
   const handlePillarSelect = async (pillar: Pillar) => {
+    // Si ya estamos viendo variaciones de este pilar, no hacemos nada extra
+    if (selectedPillar?.id === pillar.id && variations.length > 0) {
+      setStep('VARIATIONS');
+      return;
+    }
+    
     setSelectedPillar(pillar); setLoading(true); setLoadingMessage(t.loading.designing);
     try {
       const v = await generateVariations(pillar.title, topic, language);
@@ -305,10 +311,22 @@ export default function App() {
   };
 
   const handleVariationSelect = async (v: Variation, d: CourseDepth) => {
-    // PROTECCIÓN: Si ya tenemos un curso cargado para esta variación exacta, no regeneramos.
-    if (selectedVariation?.id === v.id && course && currentDepth === d) {
+    // PROTECCIÓN CRÍTICA: 
+    // Si ya hay un curso cargado en el estado y coincide con el título o ID de la variación, NO regeneramos.
+    // Esto previene que al navegar entre pestañas o cargar un JSON se pierda la información original.
+    const isLoadedCourseMatches = course && (course.title === v.title || course.subtitle.includes(v.title));
+    
+    if (isLoadedCourseMatches && selectedVariation?.id === v.id && currentDepth === d) {
       setStep('COURSE');
       return;
+    }
+
+    // Caso especial: Si venimos de una carga de JSON y el curso está presente pero selectedVariation no coincide estrictamente aún
+    if (isLoadedCourseMatches) {
+        setSelectedVariation(v);
+        setCurrentDepth(d);
+        setStep('COURSE');
+        return;
     }
 
     setSelectedVariation(v); setCurrentDepth(d); setLoading(true); setLoadingMessage(t.loading.building);

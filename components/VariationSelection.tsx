@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { Pillar, Variation, CourseDepth, TranslationDictionary } from '../types';
-import { BookOpen, ArrowLeft, BarChart, Clock, Users, ArrowRight, Zap, Layers, Book } from 'lucide-react';
+import { BookOpen, ArrowLeft, BarChart, Clock, Users, ArrowRight, Zap, Layers, Book, CheckCircle2 } from 'lucide-react';
 
 interface VariationSelectionProps {
   pillar: Pillar;
@@ -10,13 +10,14 @@ interface VariationSelectionProps {
   onBack: () => void;
   t: TranslationDictionary;
   searchTerm?: string;
+  variationScores?: Record<string, { score: number; total: number }>;
 }
 
 const cleanMarkdown = (text: string) => {
   return text.replace(/\*\*/g, '').replace(/__/g, '').replace(/###/g, '').replace(/##/g, '').replace(/#/g, '');
 };
 
-export const VariationSelection: React.FC<VariationSelectionProps> = ({ pillar, variations, onSelect, onBack, t, searchTerm }) => {
+export const VariationSelection: React.FC<VariationSelectionProps> = ({ pillar, variations, onSelect, onBack, t, searchTerm, variationScores = {} }) => {
   const [depth, setDepth] = useState<CourseDepth>('standard');
 
   const highlightMatch = (text: string) => {
@@ -60,7 +61,6 @@ export const VariationSelection: React.FC<VariationSelectionProps> = ({ pillar, 
           {t.variations.subtitle} <span className="font-black text-orange-500">"{cleanMarkdown(pillar.title)}"</span>
         </p>
 
-        {/* MARGEN DE 30PX ENTRE EL TEXTO Y LA BARRA DE HERRAMIENTAS */}
         <div className="bg-[#444444] p-2 inline-flex rounded-2xl shadow-2xl mt-[30px] border border-white/5">
           <button
             onClick={() => setDepth('express')}
@@ -105,41 +105,51 @@ export const VariationSelection: React.FC<VariationSelectionProps> = ({ pillar, 
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-[27px] pt-8">
-        {variations.map((variation) => (
-          <button
-            key={variation.id}
-            onClick={() => onSelect(variation, depth)}
-            className="flex flex-col p-10 bg-[#444444] border border-white/5 rounded-[3rem] hover:border-orange-500/50 hover:shadow-[0_20px_60px_rgba(0,0,0,0.4)] transition-all text-left group relative overflow-hidden active:scale-[0.98] mx-[5px]"
-          >
-            <div className="absolute top-0 right-0 p-10 opacity-0 group-hover:opacity-100 transition-all transform translate-x-4 group-hover:translate-x-0">
-              <ArrowRight size={32} className="text-orange-500" />
-            </div>
+        {variations.map((variation) => {
+          const scoreData = variationScores[variation.id];
+          return (
+            <button
+              key={variation.id}
+              onClick={() => onSelect(variation, depth)}
+              className="flex flex-col p-10 bg-[#444444] border border-white/5 rounded-[3rem] hover:border-orange-500/50 hover:shadow-[0_20px_60px_rgba(0,0,0,0.4)] transition-all text-left group relative overflow-hidden active:scale-[0.98] mx-[5px]"
+            >
+              <div className="absolute top-0 right-0 p-10 opacity-0 group-hover:opacity-100 transition-all transform translate-x-4 group-hover:translate-x-0">
+                <ArrowRight size={32} className="text-orange-500" />
+              </div>
 
-            <div className="flex justify-between items-start mb-6">
-              <span className={`
-                text-xs font-black uppercase tracking-widest px-4 py-1.5 rounded-full border
-                ${variation.level === 'Principiante' ? 'bg-emerald-900/20 text-emerald-400 border-emerald-800/50' : 
-                  variation.level === 'Intermedio' ? 'bg-amber-900/20 text-amber-400 border-amber-800/50' : 
-                  'bg-rose-900/20 text-rose-400 border-rose-800/50'}
-              `}>
-                {variation.level}
-              </span>
-            </div>
-            
-            <h3 className="text-3xl font-black text-white mb-4 group-hover:text-orange-500 transition-colors leading-tight tracking-tight">
-              {highlightMatch(variation.title)}
-            </h3>
-            
-            <p className="text-slate-300 text-xl mb-10 leading-relaxed line-clamp-3 font-medium">
-              {highlightMatch(variation.description)}
-            </p>
+              <div className="flex justify-between items-start mb-6 gap-4">
+                <span className={`
+                  text-xs font-black uppercase tracking-widest px-4 py-1.5 rounded-full border
+                  ${variation.level === 'Principiante' ? 'bg-emerald-900/20 text-emerald-400 border-emerald-800/50' : 
+                    variation.level === 'Intermedio' ? 'bg-amber-900/20 text-amber-400 border-amber-800/50' : 
+                    'bg-rose-900/20 text-rose-400 border-rose-800/50'}
+                `}>
+                  {variation.level}
+                </span>
 
-            <div className="mt-auto flex items-center gap-4 text-sm font-bold text-slate-400 border-t border-white/5 pt-8">
-              <Users size={20} className="text-orange-500" />
-              <span className="uppercase tracking-widest">{variation.targetAudience}</span>
-            </div>
-          </button>
-        ))}
+                {scoreData && (
+                  <div className="flex items-center gap-2 bg-emerald-600 px-3 py-1.5 rounded-xl text-white shadow-lg animate-fade-in">
+                    <CheckCircle2 size={16} />
+                    <span className="text-xs font-black">{scoreData.score} / {scoreData.total}</span>
+                  </div>
+                )}
+              </div>
+              
+              <h3 className="text-3xl font-black text-white mb-4 group-hover:text-orange-500 transition-colors leading-tight tracking-tight pr-8">
+                {highlightMatch(variation.title)}
+              </h3>
+              
+              <p className="text-slate-300 text-xl mb-10 leading-relaxed line-clamp-3 font-medium">
+                {highlightMatch(variation.description)}
+              </p>
+
+              <div className="mt-auto flex items-center gap-4 text-sm font-bold text-slate-400 border-t border-white/5 pt-8">
+                <Users size={20} className="text-orange-500" />
+                <span className="uppercase tracking-widest">{variation.targetAudience}</span>
+              </div>
+            </button>
+          );
+        })}
       </div>
     </div>
   );

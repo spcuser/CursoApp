@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { Pillar, Variation, Course, TranslationDictionary } from '../types';
-import { Folder, FolderOpen, Layout, ChevronDown, ChevronRight, BookOpen, Layers } from 'lucide-react';
+import { Folder, FolderOpen, Layout, ChevronDown, ChevronRight, BookOpen, Layers, CheckCircle2 } from 'lucide-react';
 
 interface SidebarProps {
   topic: string;
@@ -16,11 +16,12 @@ interface SidebarProps {
   mobileOpen: boolean;
   onCloseMobile: () => void;
   t: TranslationDictionary;
+  variationScores?: Record<string, { score: number; total: number }>;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ 
   topic, pillars = [], selectedPillar, variations = [], selectedVariation, 
-  onSelectPillar, onSelectVariation, t 
+  onSelectPillar, onSelectVariation, t, variationScores = {}
 }) => {
   return (
     <aside className="w-[400px] bg-slate-950 border-l border-slate-900 flex flex-col p-8 overflow-y-auto shrink-0">
@@ -50,16 +51,29 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
                 {isPillarSelected && variations && variations.length > 0 && (
                   <div className="ml-5 pl-5 border-l border-slate-800 space-y-3 py-2">
-                    {variations.map(v => (
-                      <button 
-                        key={v.id}
-                        onClick={() => onSelectVariation(v)}
-                        className={`w-[calc(100%-10px)] flex items-center gap-4 p-4 rounded-xl text-[11px] font-black uppercase text-left transition-all mx-[5px] ${selectedVariation?.id === v.id ? 'bg-white text-slate-950 shadow-2xl scale-[1.02]' : 'bg-[#444444]/50 text-slate-400 hover:text-white hover:bg-[#444444]'}`}
-                      >
-                        <Layout size={16} className={selectedVariation?.id === v.id ? 'text-orange-600' : 'text-slate-700'} />
-                        <span className="flex-1 truncate">{v.title}</span>
-                      </button>
-                    ))}
+                    {variations.map(v => {
+                      const scoreData = variationScores[v.id];
+                      const isCompleted = !!scoreData;
+                      return (
+                        <button 
+                          key={v.id}
+                          onClick={() => onSelectVariation(v)}
+                          className={`w-[calc(100%-10px)] flex items-center gap-4 p-4 rounded-xl text-[11px] font-black uppercase text-left transition-all mx-[5px] ${selectedVariation?.id === v.id ? 'bg-white text-slate-950 shadow-2xl scale-[1.02]' : 'bg-[#444444]/50 text-slate-400 hover:text-white hover:bg-[#444444]'}`}
+                        >
+                          {isCompleted ? (
+                            <CheckCircle2 size={16} className="text-emerald-500 shrink-0" />
+                          ) : (
+                            <Layout size={16} className={selectedVariation?.id === v.id ? 'text-orange-600' : 'text-slate-700'} />
+                          )}
+                          <span className="flex-1 truncate">{v.title}</span>
+                          {isCompleted && (
+                            <span className="ml-2 text-[9px] bg-emerald-500 text-white px-2 py-0.5 rounded-full shadow-sm">
+                              {scoreData.score}/{scoreData.total}
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
                   </div>
                 )}
               </div>

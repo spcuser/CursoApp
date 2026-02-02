@@ -18,6 +18,7 @@ interface CourseViewProps {
   onGenerateEbook: () => void;
   language: string;
   onSaveCurrent?: () => Promise<void>;
+  onQuizFinish?: (score: number, total: number) => void;
 }
 
 const cleanMarkdown = (text: string = '') => {
@@ -94,7 +95,7 @@ const TextProcessor: React.FC<{
 };
 
 export const CourseView: React.FC<CourseViewProps> = ({ 
-  course, pillarTitle, t, searchTerm, completedModuleIds, userHighlights = {}, onToggleModule, onUpdateHighlights, onSaveCurrent
+  course, pillarTitle, t, searchTerm, completedModuleIds, userHighlights = {}, onToggleModule, onUpdateHighlights, onSaveCurrent, onQuizFinish
 }) => {
   const [activeModuleId, setActiveModuleId] = useState<string>(course?.modules?.[0]?.id || '');
   const [viewMode, setViewMode] = useState<'module' | 'glossary' | 'highlights' | 'quiz'>('module');
@@ -132,7 +133,6 @@ export const CourseView: React.FC<CourseViewProps> = ({
     prevModuleIdRef.current = activeModuleId;
   }, [activeModuleId, viewMode]);
 
-  // Manejador para cerrar imagen con tecla ESC
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setExpandedImage(null);
@@ -221,6 +221,8 @@ export const CourseView: React.FC<CourseViewProps> = ({
         setQuizIndex(quizIndex + 1);
         setSelectedOption(null);
       } else {
+        const correctOnes = newAnswers.filter((a, i) => a === allQuestions[i].correctAnswerIndex).length;
+        if (onQuizFinish) onQuizFinish(correctOnes, allQuestions.length);
         setQuizFinished(true);
       }
     }, 1500);
@@ -259,7 +261,6 @@ export const CourseView: React.FC<CourseViewProps> = ({
 
   return (
     <div className="flex h-full w-full overflow-hidden" onMouseUp={handleMouseUp}>
-      {/* Lightbox / Modal de Imagen Expandida */}
       {expandedImage && (
         <div 
           className="fixed inset-0 z-[1000] bg-black/95 backdrop-blur-md flex items-center justify-center p-4 md:p-12 cursor-zoom-out animate-fade-in"

@@ -55,7 +55,7 @@ export interface EbookTopic {
 
 export interface EbookChapter {
   title: string;
-  topics: EbookTopic[];
+  chapters: EbookChapter[];
 }
 
 export interface EbookStructure {
@@ -77,7 +77,8 @@ export interface SavedCourse {
   course?: Course;
   depth?: CourseDepth;
   completedModuleIds?: string[];
-  userHighlights?: Record<string, string[]>; // Key: moduleId, Value: array of highlighted strings
+  userHighlights?: Record<string, string[]>;
+  quizResults?: Record<string, { score: number; total: number }>; // Tracks scores per variation ID
 }
 
 export interface TranslationDictionary {

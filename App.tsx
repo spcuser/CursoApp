@@ -59,6 +59,7 @@ export default function App() {
   const [currentDepth, setCurrentDepth] = useState<CourseDepth>('standard');
   const [completedModuleIds, setCompletedModuleIds] = useState<string[]>([]);
   const [userHighlights, setUserHighlights] = useState<Record<string, string[]>>({});
+  const [variationScores, setVariationScores] = useState<Record<string, { score: number, total: number }>>({});
   const [savedCourses, setSavedCourses] = useState<SavedCourse[]>([]);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
@@ -102,7 +103,8 @@ export default function App() {
         ...course, 
         modules: course.modules.map(m => ({ ...m, imageUrl: undefined })) 
       } : undefined,
-      depth: currentDepth, completedModuleIds, userHighlights
+      depth: currentDepth, completedModuleIds, userHighlights,
+      quizResults: variationScores
     };
 
     const updated = [sessionData, ...savedCourses.filter(c => c.id !== currentSessionId)].slice(0, 50);
@@ -112,7 +114,7 @@ export default function App() {
     } catch (e) {
       console.warn("LocalStorage lleno, no se pudo guardar el historial.");
     }
-  }, [step, topic, pillars, selectedPillar, variations, selectedVariation, course, currentDepth, completedModuleIds, userHighlights]);
+  }, [step, topic, pillars, selectedPillar, variations, selectedVariation, course, currentDepth, completedModuleIds, userHighlights, variationScores]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -124,9 +126,6 @@ export default function App() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  /**
-   * RESTAURACIÓN: MODO PANTALLA COMPLETA NATIVO
-   */
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
       document.documentElement.requestFullscreen().catch((err) => {
@@ -140,7 +139,7 @@ export default function App() {
   };
 
   const handleRestart = () => { 
-    setStep('INPUT'); setTopic(''); setPillars([]); setCourse(null); setCurrentSessionId(null);
+    setStep('INPUT'); setTopic(''); setPillars([]); setCourse(null); setCurrentSessionId(null); setVariationScores({});
   };
 
   const loadSavedStrategy = (saved: SavedCourse) => {
@@ -156,6 +155,7 @@ export default function App() {
     setCurrentDepth(saved.depth || 'standard');
     setCompletedModuleIds(saved.completedModuleIds || []);
     setUserHighlights(saved.userHighlights || {});
+    setVariationScores(saved.quizResults || {});
     setStep(saved.step || 'INPUT');
     setIsHistoryOpen(false);
   };
@@ -189,7 +189,8 @@ export default function App() {
       step, topic, relatedTopics, pillars, selectedPillar: selectedPillar || undefined,
       variations, selectedVariation: selectedVariation || undefined, 
       course: course || undefined,
-      depth: currentDepth, completedModuleIds, userHighlights
+      depth: currentDepth, completedModuleIds, userHighlights,
+      quizResults: variationScores
     };
 
     const jsonString = JSON.stringify(sessionData, null, 2);
@@ -331,6 +332,15 @@ export default function App() {
     } catch (e) { setLoading(false); alert('Error al construir el curso.'); }
   };
 
+  const handleQuizFinish = (score: number, total: number) => {
+    if (selectedVariation) {
+      setVariationScores(prev => ({
+        ...prev,
+        [selectedVariation.id]: { score, total }
+      }));
+    }
+  };
+
   return (
     <div className={`h-screen flex flex-col font-sans overflow-hidden transition-all ${darkMode ? 'bg-slate-950 text-slate-200' : 'bg-slate-50 text-slate-900'}`}>
       <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} onDownloadBackup={() => {}} t={t} />
@@ -420,7 +430,7 @@ export default function App() {
               <div className="w-full h-full">
                 {step === 'INPUT' && <TopicInput onSubmit={handleTopicSubmit} t={t} />}
                 {step === 'PILLARS' && pillars.length > 0 && <PillarSelection topic={topic} pillars={pillars} relatedTopics={relatedTopics} onSelect={handlePillarSelect} onSelectTopic={handleTopicSubmit} language={language} t={t} searchTerm={searchTerm} />}
-                {step === 'VARIATIONS' && selectedPillar && variations.length > 0 && <VariationSelection pillar={selectedPillar} variations={variations} onSelect={handleVariationSelect} onBack={() => setStep('PILLARS')} t={t} searchTerm={searchTerm} />}
+                {step === 'VARIATIONS' && selectedPillar && variations.length > 0 && <VariationSelection pillar={selectedPillar} variations={variations} onSelect={handleVariationSelect} onBack={() => setStep('PILLARS')} t={t} searchTerm={searchTerm} variationScores={variationScores} />}
                 {step === 'COURSE' && (
                   course ? (
                     <CourseView 
@@ -432,6 +442,7 @@ export default function App() {
                       onUpdateHighlights={(id, h) => setUserHighlights(prev => ({ ...prev, [id]: h }))} 
                       onGenerateEbook={() => {}} 
                       onSaveCurrent={handleExportCurrentStrategy}
+                      onQuizFinish={handleQuizFinish}
                     />
                   ) : (
                     <div className="flex flex-col items-center justify-center h-full text-center space-y-8 animate-fade-in py-20">
@@ -447,7 +458,21 @@ export default function App() {
         </main>
         
         {step !== 'INPUT' && (
-          <Sidebar topic={topic} pillars={pillars} selectedPillar={selectedPillar} variations={variations} selectedVariation={selectedVariation} course={course} onSelectPillar={handlePillarSelect} onSelectVariation={(v) => handleVariationSelect(v, currentDepth)} isVisible={true} mobileOpen={false} onCloseMobile={() => {}} t={t} />
+          <Sidebar 
+            topic={topic} 
+            pillars={pillars} 
+            selectedPillar={selectedPillar} 
+            variations={variations} 
+            selectedVariation={selectedVariation} 
+            course={course} 
+            onSelectPillar={handlePillarSelect} 
+            onSelectVariation={(v) => handleVariationSelect(v, currentDepth)} 
+            isVisible={true} 
+            mobileOpen={false} 
+            onCloseMobile={() => {}} 
+            t={t} 
+            variationScores={variationScores}
+          />
         )}
       </div>
     </div>

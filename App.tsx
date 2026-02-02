@@ -99,10 +99,7 @@ export default function App() {
       id: currentSessionId, createdAt: Date.now(), lastUpdated: Date.now(),
       step, topic, relatedTopics, pillars, selectedPillar: selectedPillar || undefined,
       variations, selectedVariation: selectedVariation || undefined, 
-      course: course ? { 
-        ...course, 
-        modules: course.modules.map(m => ({ ...m, imageUrl: undefined })) 
-      } : undefined,
+      course: course || undefined,
       depth: currentDepth, completedModuleIds, userHighlights,
       quizResults: variationScores
     };
@@ -308,6 +305,12 @@ export default function App() {
   };
 
   const handleVariationSelect = async (v: Variation, d: CourseDepth) => {
+    // PROTECCIÓN: Si ya tenemos un curso cargado para esta variación exacta, no regeneramos.
+    if (selectedVariation?.id === v.id && course && currentDepth === d) {
+      setStep('COURSE');
+      return;
+    }
+
     setSelectedVariation(v); setCurrentDepth(d); setLoading(true); setLoadingMessage(t.loading.building);
     try {
       const c = await generateCourse(v.title, v.description, topic, d, language);

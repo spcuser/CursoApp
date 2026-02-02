@@ -1,7 +1,6 @@
-
 import React, { useState } from 'react';
 import { Pillar, Variation, CourseDepth, TranslationDictionary } from '../types';
-import { BookOpen, ArrowLeft, BarChart, Clock, Users, ArrowRight, Zap, Layers, Book, CheckCircle2 } from 'lucide-react';
+import { BookOpen, ArrowLeft, BarChart, Clock, Users, ArrowRight, Zap, Layers, Book, CheckCircle2, AlertCircle } from 'lucide-react';
 
 interface VariationSelectionProps {
   pillar: Pillar;
@@ -49,7 +48,7 @@ export const VariationSelection: React.FC<VariationSelectionProps> = ({ pillar, 
           <ArrowLeft size={22} />
           <span>{t.variations.back}</span>
         </button>
-        <div className="inline-flex items-center gap-2 px-5 py-2 rounded-full bg-orange-500/10 text-orange-500 text-sm font-black uppercase tracking-widest border border-orange-500/20">
+        <div className="inline-flex items-center gap-2 px-5 py-2 rounded-full bg-orange-500/10 text-orange-400 text-sm font-black uppercase tracking-widest border border-orange-500/20">
           <BookOpen size={16} />
           <span>{t.steps.step2}</span>
         </div>
@@ -107,6 +106,8 @@ export const VariationSelection: React.FC<VariationSelectionProps> = ({ pillar, 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-[27px] pt-8">
         {variations.map((variation) => {
           const scoreData = variationScores[variation.id];
+          const isPerfect = scoreData && scoreData.score === scoreData.total;
+          
           return (
             <button
               key={variation.id}
@@ -128,8 +129,8 @@ export const VariationSelection: React.FC<VariationSelectionProps> = ({ pillar, 
                 </span>
 
                 {scoreData && (
-                  <div className="flex items-center gap-2 bg-emerald-600 px-3 py-1.5 rounded-xl text-white shadow-lg animate-fade-in">
-                    <CheckCircle2 size={16} />
+                  <div className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-white shadow-lg animate-fade-in ${isPerfect ? 'bg-emerald-600 shadow-emerald-900/20' : 'bg-rose-600 shadow-rose-900/20'}`}>
+                    {isPerfect ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
                     <span className="text-xs font-black">{scoreData.score} / {scoreData.total}</span>
                   </div>
                 )}

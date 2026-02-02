@@ -1,7 +1,6 @@
-
 import React from 'react';
 import { Pillar, Variation, Course, TranslationDictionary } from '../types';
-import { Folder, FolderOpen, Layout, ChevronDown, ChevronRight, BookOpen, Layers, CheckCircle2 } from 'lucide-react';
+import { Folder, FolderOpen, Layout, ChevronDown, ChevronRight, BookOpen, Layers, CheckCircle2, AlertCircle } from 'lucide-react';
 
 interface SidebarProps {
   topic: string;
@@ -54,6 +53,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     {variations.map(v => {
                       const scoreData = variationScores[v.id];
                       const isCompleted = !!scoreData;
+                      const isPerfect = scoreData && scoreData.score === scoreData.total;
+                      
                       return (
                         <button 
                           key={v.id}
@@ -61,13 +62,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
                           className={`w-[calc(100%-10px)] flex items-center gap-4 p-4 rounded-xl text-[11px] font-black uppercase text-left transition-all mx-[5px] ${selectedVariation?.id === v.id ? 'bg-white text-slate-950 shadow-2xl scale-[1.02]' : 'bg-[#444444]/50 text-slate-400 hover:text-white hover:bg-[#444444]'}`}
                         >
                           {isCompleted ? (
-                            <CheckCircle2 size={16} className="text-emerald-500 shrink-0" />
+                            isPerfect ? (
+                              <CheckCircle2 size={16} className="text-emerald-500 shrink-0" />
+                            ) : (
+                              <AlertCircle size={16} className="text-rose-500 shrink-0" />
+                            )
                           ) : (
                             <Layout size={16} className={selectedVariation?.id === v.id ? 'text-orange-600' : 'text-slate-700'} />
                           )}
                           <span className="flex-1 truncate">{v.title}</span>
                           {isCompleted && (
-                            <span className="ml-2 text-[9px] bg-emerald-500 text-white px-2 py-0.5 rounded-full shadow-sm">
+                            <span className={`ml-2 text-[9px] text-white px-2 py-0.5 rounded-full shadow-sm ${isPerfect ? 'bg-emerald-500' : 'bg-rose-500'}`}>
                               {scoreData.score}/{scoreData.total}
                             </span>
                           )}

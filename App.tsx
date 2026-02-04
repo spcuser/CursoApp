@@ -40,6 +40,17 @@ const TRANSLATIONS: Record<string, TranslationDictionary> = {
   }
 };
 
+// Helper for extracting context snippets
+const getSnippet = (text: string, term: string, radius: number = 40) => {
+  if (!text || !term) return "";
+  const idx = text.toLowerCase().indexOf(term.toLowerCase());
+  if (idx === -1) return text.substring(0, radius * 2) + (text.length > radius * 2 ? "..." : "");
+  
+  const start = Math.max(0, idx - radius);
+  const end = Math.min(text.length, idx + term.length + radius);
+  return (start > 0 ? "..." : "") + text.substring(start, end).replace(/\n/g, ' ') + (end < text.length ? "..." : "");
+};
+
 export default function App() {
   const [step, setStep] = useState<AppStep>('INPUT');
   const [loading, setLoading] = useState(false);
@@ -73,38 +84,59 @@ export default function App() {
 
   const t = TRANSLATIONS[language];
 
-  // Logic for Global Search Results
+  // Logic for Global Search Results with Snippets
   const searchResults = useMemo(() => {
     if (!searchTerm || searchTerm.length < 2) return null;
     const term = searchTerm.toLowerCase();
+    const results: { type: 'pillar' | 'variation' | 'module', id: string, title: string, context: string, data?: any }[] = [];
 
-    const results: { type: 'pillar' | 'variation' | 'module', id: string, title: string, context?: string, data?: any }[] = [];
-
-    // Search Pillars
+    // 1. Search Pillars
     pillars.forEach(p => {
-      if (p.title.toLowerCase().includes(term) || p.description.toLowerCase().includes(term)) {
-        results.push({ type: 'pillar', id: p.id, title: p.title, context: p.description, data: p });
+      if (p.title.toLowerCase().includes(term)) {
+        results.push({ type: 'pillar', id: p.id, title: p.title, context: getSnippet(p.description, term), data: p });
+      } else if (p.description.toLowerCase().includes(term)) {
+        results.push({ type: 'pillar', id: p.id, title: p.title, context: getSnippet(p.description, term), data: p });
       }
     });
 
-    // Search Variations
+    // 2. Search Variations
     variations.forEach(v => {
-      if (v.title.toLowerCase().includes(term) || v.description.toLowerCase().includes(term)) {
-        results.push({ type: 'variation', id: v.id, title: v.title, context: v.description, data: v });
+      if (v.title.toLowerCase().includes(term)) {
+        results.push({ type: 'variation', id: v.id, title: v.title, context: getSnippet(v.description, term), data: v });
+      } else if (v.description.toLowerCase().includes(term)) {
+        results.push({ type: 'variation', id: v.id, title: v.title, context: getSnippet(v.description, term), data: v });
       }
     });
 
-    // Search Course Modules
+    // 3. Search Course Modules (Content & Key Takeaways)
     if (course && course.modules) {
       course.modules.forEach(m => {
-        if (m.title.toLowerCase().includes(term) || m.contentMarkdown.toLowerCase().includes(term) || m.keyTakeaway.toLowerCase().includes(term)) {
-          results.push({ type: 'module', id: m.id, title: m.title, context: m.keyTakeaway, data: m });
+        if (m.title.toLowerCase().includes(term)) {
+          results.push({ type: 'module', id: m.id, title: m.title, context: getSnippet(m.keyTakeaway, term), data: m });
+        } else if (m.contentMarkdown.toLowerCase().includes(term)) {
+          results.push({ type: 'module', id: m.id, title: m.title, context: getSnippet(m.contentMarkdown, term), data: m });
+        } else if (m.keyTakeaway.toLowerCase().includes(term)) {
+          results.push({ type: 'module', id: m.id, title: m.title, context: getSnippet(m.keyTakeaway, term), data: m });
         }
       });
     }
 
     return results;
   }, [searchTerm, pillars, variations, course]);
+
+  const highlightText = (text: string, term: string) => {
+    if (!term) return text;
+    const parts = text.split(new RegExp(`(${term})`, 'gi'));
+    return (
+      <span>
+        {parts.map((part, i) => 
+          part.toLowerCase() === term.toLowerCase() ? (
+            <span key={i} className="text-orange-500 font-black">{part}</span>
+          ) : part
+        )}
+      </span>
+    );
+  };
 
   const sortedSavedCourses = useMemo(() => {
     return [...savedCourses].sort((a, b) => b.lastUpdated - a.lastUpdated);
@@ -426,7 +458,7 @@ export default function App() {
               <button onClick={() => { setSearchTerm(''); setShowSearchResults(false); }} className="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center bg-orange-500 hover:bg-orange-600 text-white rounded-full transition-all shadow-lg active:scale-90 z-50 border-2 border-white/20"><X size={16} strokeWidth={4} /></button>
             )}
 
-            {/* SEARCH RESULTS DROPDOWN */}
+            {/* SEARCH RESULTS DROPDOWN WITH SNIPPETS */}
             {showSearchResults && searchResults && searchResults.length > 0 && (
               <div className="absolute top-full left-0 w-full mt-3 bg-slate-900 border border-slate-800 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.8)] overflow-hidden z-[300] animate-fade-in">
                 <div className="p-4 bg-slate-950/50 border-b border-slate-800 flex items-center justify-between">
@@ -445,16 +477,20 @@ export default function App() {
                         {result.type === 'variation' && <Layers size={18} />}
                         {result.type === 'module' && <BookOpen size={18} />}
                       </div>
-                      <div className="min-w-0">
+                      <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2 mb-1">
                           <span className="text-[9px] font-black uppercase tracking-widest text-orange-500 opacity-60">
                             {result.type === 'pillar' ? 'Pilar' : result.type === 'variation' ? 'Idea' : 'Lección'}
                           </span>
                         </div>
-                        <h4 className="text-sm font-bold text-white truncate group-hover:text-orange-500 transition-colors">{result.title}</h4>
-                        <p className="text-[11px] text-slate-500 line-clamp-1 italic">{result.context}</p>
+                        <h4 className="text-sm font-bold text-white truncate group-hover:text-orange-500 transition-colors">
+                          {highlightText(result.title, searchTerm)}
+                        </h4>
+                        <p className="text-[11px] text-slate-400 line-clamp-2 leading-relaxed mt-1 font-medium bg-black/20 p-2 rounded-lg border border-white/5">
+                          {highlightText(result.context, searchTerm)}
+                        </p>
                       </div>
-                      <ChevronRight size={14} className="ml-auto text-slate-700 opacity-0 group-hover:opacity-100 transition-all" />
+                      <ChevronRight size={14} className="ml-2 text-slate-700 opacity-0 group-hover:opacity-100 transition-all" />
                     </button>
                   ))}
                 </div>

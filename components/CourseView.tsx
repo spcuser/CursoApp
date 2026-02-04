@@ -7,6 +7,8 @@ import {
 
 interface CourseViewProps {
   course: Course;
+  activeModuleId: string;
+  setActiveModuleId: (id: string) => void;
   pillarTitle: string;
   onBack: () => void;
   t: TranslationDictionary;
@@ -67,7 +69,6 @@ const TextProcessor: React.FC<{
         const isSearchMatch = searchTerm && lowerPart === searchTerm.trim().toLowerCase();
 
         if (isUserHighlight || isSearchMatch) {
-          // Si es el recuadro naranja (isKeyTakeaway), usamos Azul Marino strictly.
           const bgColor = isKeyTakeaway ? '#000080' : (isUserHighlight ? '#f97316' : '#ea580c');
           const textColor = 'white';
 
@@ -105,9 +106,8 @@ const TextProcessor: React.FC<{
 };
 
 export const CourseView: React.FC<CourseViewProps> = ({ 
-  course, pillarTitle, t, searchTerm, completedModuleIds, userHighlights = {}, onToggleModule, onUpdateHighlights, onSaveCurrent, onQuizFinish
+  course, activeModuleId, setActiveModuleId, pillarTitle, t, searchTerm, completedModuleIds, userHighlights = {}, onToggleModule, onUpdateHighlights, onSaveCurrent, onQuizFinish
 }) => {
-  const [activeModuleId, setActiveModuleId] = useState<string>(course?.modules?.[0]?.id || '');
   const [viewMode, setViewMode] = useState<'module' | 'glossary' | 'highlights' | 'quiz'>('module');
   const [selectedGlossaryTerm, setSelectedGlossaryTerm] = useState<string | null>(null);
   const [selectionBox, setSelectionBox] = useState<{ x: number, y: number, text: string } | null>(null);
@@ -116,7 +116,6 @@ export const CourseView: React.FC<CourseViewProps> = ({
   const [expandedImage, setExpandedImage] = useState<string | null>(null);
   
   const contentRef = useRef<HTMLDivElement>(null);
-  
   const lastScrollPosRef = useRef(0);
   const prevViewModeRef = useRef(viewMode);
   const prevModuleIdRef = useRef(activeModuleId);
@@ -133,6 +132,7 @@ export const CourseView: React.FC<CourseViewProps> = ({
     if (prevModuleIdRef.current !== activeModuleId) {
       container.scrollTo({ top: 0, behavior: 'auto' });
       lastScrollPosRef.current = 0;
+      setViewMode('module'); // Al cambiar de módulo desde el buscador, volvemos a vista de lección
     } 
     else if (viewMode === 'module' && prevViewModeRef.current !== 'module') {
       container.scrollTo({ top: lastScrollPosRef.current, behavior: 'smooth' });
@@ -174,7 +174,6 @@ export const CourseView: React.FC<CourseViewProps> = ({
     return (course?.modules || []).flatMap(m => m.quiz || []);
   }, [course?.modules]);
 
-  // RANDOMIZED OPTIONS
   const currentShuffledOptions = useMemo(() => {
     const currentQ = allQuestions[quizIndex];
     if (!currentQ) return [];
@@ -235,7 +234,6 @@ export const CourseView: React.FC<CourseViewProps> = ({
     const originalIdx = currentShuffledOptions[shuffledIdx].originalIndex;
     setSelectedOption(shuffledIdx);
     
-    // Almacenamos el índice original para validación de puntaje
     const newAnswers = [...quizAnswers, originalIdx];
     setQuizAnswers(newAnswers);
 
@@ -256,7 +254,7 @@ export const CourseView: React.FC<CourseViewProps> = ({
     setQuizAnswers([]);
     setQuizFinished(false);
     setSelectedOption(null);
-    setResetCounter(prev => prev + 1); // Trigger re-shuffle
+    setResetCounter(prev => prev + 1); 
   };
 
   const handleTermClick = (term: string) => {

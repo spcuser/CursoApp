@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Pillar, Variation, Course, TranslationDictionary } from '../types';
 import { Folder, FolderOpen, Layout, ChevronDown, ChevronRight, BookOpen, Layers, CheckCircle2, AlertCircle } from 'lucide-react';
@@ -9,6 +10,8 @@ interface SidebarProps {
   variations: Variation[];
   selectedVariation: Variation | null;
   course: Course | null;
+  activeModuleId: string | null;
+  onSetActiveModule: (id: string) => void;
   onSelectPillar: (pillar: Pillar) => void;
   onSelectVariation: (variation: Variation) => void;
   isVisible: boolean;
@@ -19,7 +22,7 @@ interface SidebarProps {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ 
-  topic, pillars = [], selectedPillar, variations = [], selectedVariation, 
+  topic, pillars = [], selectedPillar, variations = [], selectedVariation, course, activeModuleId, onSetActiveModule,
   onSelectPillar, onSelectVariation, t, variationScores = {}
 }) => {
   return (
@@ -54,29 +57,42 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       const scoreData = variationScores[v.id];
                       const isCompleted = !!scoreData;
                       const isPerfect = scoreData && scoreData.score === scoreData.total;
+                      const isVarSelected = selectedVariation?.id === v.id;
                       
                       return (
-                        <button 
-                          key={v.id}
-                          onClick={() => onSelectVariation(v)}
-                          className={`w-[calc(100%-10px)] flex items-center gap-4 p-4 rounded-xl text-[11px] font-black uppercase text-left transition-all mx-[5px] ${selectedVariation?.id === v.id ? 'bg-white text-slate-950 shadow-2xl scale-[1.02]' : 'bg-[#444444]/50 text-slate-400 hover:text-white hover:bg-[#444444]'}`}
-                        >
-                          {isCompleted ? (
-                            isPerfect ? (
-                              <CheckCircle2 size={16} className="text-emerald-500 shrink-0" />
+                        <div key={v.id} className="space-y-1">
+                          <button 
+                            onClick={() => onSelectVariation(v)}
+                            className={`w-[calc(100%-10px)] flex items-center gap-4 p-4 rounded-xl text-[11px] font-black uppercase text-left transition-all mx-[5px] ${isVarSelected ? 'bg-orange-600/10 border border-orange-500/30 text-orange-500 shadow-inner' : 'bg-[#444444]/50 text-slate-400 hover:text-white hover:bg-[#444444]'}`}
+                          >
+                            {isCompleted ? (
+                              isPerfect ? (
+                                <CheckCircle2 size={16} className="text-emerald-500 shrink-0" />
+                              ) : (
+                                <AlertCircle size={16} className="text-rose-500 shrink-0" />
+                              )
                             ) : (
-                              <AlertCircle size={16} className="text-rose-500 shrink-0" />
-                            )
-                          ) : (
-                            <Layout size={16} className={selectedVariation?.id === v.id ? 'text-orange-600' : 'text-slate-700'} />
+                              <Layout size={16} className={isVarSelected ? 'text-orange-500' : 'text-slate-700'} />
+                            )}
+                            <span className="flex-1 truncate">{v.title}</span>
+                          </button>
+
+                          {/* MODULE LIST IF COURSE IS LOADED AND THIS VARIATION IS ACTIVE */}
+                          {isVarSelected && course && (
+                            <div className="ml-4 pl-4 border-l border-slate-800 space-y-2 mt-2 mb-4">
+                              {course.modules.map((m, idx) => (
+                                <button 
+                                  key={m.id}
+                                  onClick={() => onSetActiveModule(m.id)}
+                                  className={`w-full flex items-center gap-3 p-3 rounded-xl text-[10px] font-bold transition-all ${activeModuleId === m.id ? 'bg-white text-slate-900 shadow-xl' : 'text-slate-500 hover:text-white hover:bg-slate-800'}`}
+                                >
+                                  <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[8px] font-black ${activeModuleId === m.id ? 'bg-orange-500 text-white' : 'bg-slate-800'}`}>{idx + 1}</div>
+                                  <span className="truncate">{m.title}</span>
+                                </button>
+                              ))}
+                            </div>
                           )}
-                          <span className="flex-1 truncate">{v.title}</span>
-                          {isCompleted && (
-                            <span className={`ml-2 text-[9px] text-white px-2 py-0.5 rounded-full shadow-sm ${isPerfect ? 'bg-emerald-500' : 'bg-rose-500'}`}>
-                              {scoreData.score}/{scoreData.total}
-                            </span>
-                          )}
-                        </button>
+                        </div>
                       );
                     })}
                   </div>
@@ -84,19 +100,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </div>
             );
           })}
-        </div>
-
-        <div className="pt-8 border-t border-slate-900">
-           <div className="flex items-center gap-3 text-[10px] font-black text-slate-600 uppercase tracking-widest mb-6">
-             <BookOpen size={14} />
-             <span>ESTADO</span>
-           </div>
-           <div className="space-y-3">
-             <div className="flex items-center gap-4 p-4 bg-[#444444]/30 rounded-2xl text-slate-500 border border-white/5 mx-[5px]">
-               <div className="w-6 h-6 bg-slate-800 rounded-lg flex items-center justify-center text-[11px] font-black">!</div>
-               <span className="text-xs font-bold truncate">Lección en curso</span>
-             </div>
-           </div>
         </div>
       </div>
     </aside>

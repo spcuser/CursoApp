@@ -23,7 +23,7 @@ import { LoadingScreen } from './components/LoadingScreen';
 import { SettingsModal } from './components/SettingsModal';
 import { Sidebar } from './components/Sidebar';
 import { 
-  Folder, BrainCircuit, ChevronDown, Settings, Sun, Moon, Search, X, History, Trash2, Clock, FileText, ChevronRight, Upload, Download, Maximize, Minimize, AlertCircle, RefreshCw
+  Folder, BrainCircuit, ChevronDown, Settings, Sun, Moon, Search, X, History, Trash2, Clock, FileText, ChevronRight, Upload, Download, Maximize, Minimize, AlertCircle, RefreshCw, Layout, BookOpen, Layers
 } from 'lucide-react';
 
 const TRANSLATIONS: Record<string, TranslationDictionary> = {
@@ -56,6 +56,7 @@ export default function App() {
   const [variations, setVariations] = useState<Variation[]>([]);
   const [selectedVariation, setSelectedVariation] = useState<Variation | null>(null);
   const [course, setCourse] = useState<Course | null>(null);
+  const [activeModuleId, setActiveModuleId] = useState<string | null>(null);
   const [currentDepth, setCurrentDepth] = useState<CourseDepth>('standard');
   const [completedModuleIds, setCompletedModuleIds] = useState<string[]>([]);
   const [userHighlights, setUserHighlights] = useState<Record<string, string[]>>({});
@@ -63,12 +64,47 @@ export default function App() {
   const [savedCourses, setSavedCourses] = useState<SavedCourse[]>([]);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [showSearchResults, setShowSearchResults] = useState(false);
   
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const searchDropdownRef = useRef<HTMLDivElement>(null);
   const fileImportRef = useRef<HTMLInputElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   const t = TRANSLATIONS[language];
+
+  // Logic for Global Search Results
+  const searchResults = useMemo(() => {
+    if (!searchTerm || searchTerm.length < 2) return null;
+    const term = searchTerm.toLowerCase();
+
+    const results: { type: 'pillar' | 'variation' | 'module', id: string, title: string, context?: string, data?: any }[] = [];
+
+    // Search Pillars
+    pillars.forEach(p => {
+      if (p.title.toLowerCase().includes(term) || p.description.toLowerCase().includes(term)) {
+        results.push({ type: 'pillar', id: p.id, title: p.title, context: p.description, data: p });
+      }
+    });
+
+    // Search Variations
+    variations.forEach(v => {
+      if (v.title.toLowerCase().includes(term) || v.description.toLowerCase().includes(term)) {
+        results.push({ type: 'variation', id: v.id, title: v.title, context: v.description, data: v });
+      }
+    });
+
+    // Search Course Modules
+    if (course && course.modules) {
+      course.modules.forEach(m => {
+        if (m.title.toLowerCase().includes(term) || m.contentMarkdown.toLowerCase().includes(term) || m.keyTakeaway.toLowerCase().includes(term)) {
+          results.push({ type: 'module', id: m.id, title: m.title, context: m.keyTakeaway, data: m });
+        }
+      });
+    }
+
+    return results;
+  }, [searchTerm, pillars, variations, course]);
 
   const sortedSavedCourses = useMemo(() => {
     return [...savedCourses].sort((a, b) => b.lastUpdated - a.lastUpdated);
@@ -118,6 +154,9 @@ export default function App() {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setIsHistoryOpen(false);
       }
+      if (searchDropdownRef.current && !searchDropdownRef.current.contains(event.target as Node)) {
+        setShowSearchResults(false);
+      }
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
@@ -128,15 +167,13 @@ export default function App() {
       document.documentElement.requestFullscreen().catch((err) => {
         console.error(`Error al intentar activar pantalla completa: ${err.message}`);
       });
-      setIsFullscreen(true);
     } else {
       document.exitFullscreen();
-      setIsFullscreen(false);
     }
   };
 
   const handleRestart = () => { 
-    setStep('INPUT'); setTopic(''); setPillars([]); setCourse(null); setCurrentSessionId(null); setVariationScores({});
+    setStep('INPUT'); setTopic(''); setPillars([]); setCourse(null); setCurrentSessionId(null); setVariationScores({}); setActiveModuleId(null);
   };
 
   const loadSavedStrategy = (saved: SavedCourse) => {
@@ -154,6 +191,9 @@ export default function App() {
     setUserHighlights(saved.userHighlights || {});
     setVariationScores(saved.quizResults || {});
     setStep(saved.step || 'INPUT');
+    if (saved.course && saved.course.modules && saved.course.modules.length > 0) {
+      setActiveModuleId(saved.course.modules[0].id);
+    }
     setIsHistoryOpen(false);
   };
 
@@ -193,25 +233,7 @@ export default function App() {
     const jsonString = JSON.stringify(sessionData, null, 2);
     const fileName = `estrategia_${topic.toLowerCase().replace(/\s+/g, '_')}.json`;
 
-    if ('showSaveFilePicker' in window) {
-      try {
-        const handle = await (window as any).showSaveFilePicker({
-          suggestedName: fileName,
-          types: [{
-            description: 'Archivo de Estrategia JSON',
-            accept: {'application/json': ['.json']},
-          }],
-        });
-        const writable = await handle.createWritable();
-        await writable.write(jsonString);
-        await writable.close();
-        return;
-      } catch (err: any) {
-        if (err.name === 'AbortError') return;
-        console.warn("Fallo showSaveFilePicker, recurriendo a descarga tradicional", err);
-      }
-    }
-
+    // Priorizamos descarga tradicional para evitar errores de permisos en iframes/subframes
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(jsonString);
     const downloadAnchorNode = document.createElement('a');
     downloadAnchorNode.setAttribute("href", dataStr);
@@ -297,7 +319,6 @@ export default function App() {
   };
 
   const handlePillarSelect = async (pillar: Pillar) => {
-    // Si ya estamos viendo variaciones de este pilar, no hacemos nada extra
     if (selectedPillar?.id === pillar.id && variations.length > 0) {
       setStep('VARIATIONS');
       return;
@@ -311,9 +332,6 @@ export default function App() {
   };
 
   const handleVariationSelect = async (v: Variation, d: CourseDepth) => {
-    // PROTECCIÓN CRÍTICA: 
-    // Si ya hay un curso cargado en el estado y coincide con el título o ID de la variación, NO regeneramos.
-    // Esto previene que al navegar entre pestañas o cargar un JSON se pierda la información original.
     const isLoadedCourseMatches = course && (course.title === v.title || course.subtitle.includes(v.title));
     
     if (isLoadedCourseMatches && selectedVariation?.id === v.id && currentDepth === d) {
@@ -321,7 +339,6 @@ export default function App() {
       return;
     }
 
-    // Caso especial: Si venimos de una carga de JSON y el curso está presente pero selectedVariation no coincide estrictamente aún
     if (isLoadedCourseMatches) {
         setSelectedVariation(v);
         setCurrentDepth(d);
@@ -334,6 +351,7 @@ export default function App() {
       const c = await generateCourse(v.title, v.description, topic, d, language);
       if (c && c.modules && Array.isArray(c.modules) && c.modules.length > 0) {
         setCourse(c); setStep('COURSE'); setLoading(false);
+        setActiveModuleId(c.modules[0].id);
         c.modules.forEach(async (mod, idx) => {
           if (mod.imageDescription) {
             try {
@@ -362,6 +380,18 @@ export default function App() {
     }
   };
 
+  const handleSearchResultClick = (result: any) => {
+    setShowSearchResults(false);
+    if (result.type === 'pillar') {
+      handlePillarSelect(result.data);
+    } else if (result.type === 'variation') {
+      handleVariationSelect(result.data, currentDepth);
+    } else if (result.type === 'module') {
+      setStep('COURSE');
+      setActiveModuleId(result.id);
+    }
+  };
+
   return (
     <div className={`h-screen flex flex-col font-sans overflow-hidden transition-all ${darkMode ? 'bg-slate-950 text-slate-200' : 'bg-slate-50 text-slate-900'}`}>
       <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} onDownloadBackup={() => {}} t={t} />
@@ -378,7 +408,7 @@ export default function App() {
             <span className={`text-2xl font-black tracking-tighter text-white uppercase`}>CURSOAPP</span>
           </div>
           
-          <div className="relative w-96">
+          <div className="relative w-96" ref={searchDropdownRef}>
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
             <input 
               ref={searchInputRef}
@@ -386,10 +416,49 @@ export default function App() {
               placeholder="Búsqueda..." 
               className={`w-full border-2 rounded-xl py-3 pl-12 pr-12 text-base font-medium focus:ring-0 focus:border-orange-500 transition-all bg-black/30 text-white placeholder:text-slate-500 border-white/10`}
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onFocus={() => setShowSearchResults(true)}
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                setShowSearchResults(true);
+              }}
             />
             {searchTerm && (
-              <button onClick={() => setSearchTerm('')} className="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center bg-orange-500 hover:bg-orange-600 text-white rounded-full transition-all shadow-lg active:scale-90 z-50 border-2 border-white/20"><X size={16} strokeWidth={4} /></button>
+              <button onClick={() => { setSearchTerm(''); setShowSearchResults(false); }} className="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center bg-orange-500 hover:bg-orange-600 text-white rounded-full transition-all shadow-lg active:scale-90 z-50 border-2 border-white/20"><X size={16} strokeWidth={4} /></button>
+            )}
+
+            {/* SEARCH RESULTS DROPDOWN */}
+            {showSearchResults && searchResults && searchResults.length > 0 && (
+              <div className="absolute top-full left-0 w-full mt-3 bg-slate-900 border border-slate-800 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.8)] overflow-hidden z-[300] animate-fade-in">
+                <div className="p-4 bg-slate-950/50 border-b border-slate-800 flex items-center justify-between">
+                  <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Resultados Globales</span>
+                  <span className="text-[10px] font-bold text-orange-500">{searchResults.length} encontrados</span>
+                </div>
+                <div className="max-h-[400px] overflow-y-auto custom-scrollbar">
+                  {searchResults.map((result, idx) => (
+                    <button 
+                      key={idx} 
+                      onClick={() => handleSearchResultClick(result)}
+                      className="w-full flex items-center gap-4 p-5 hover:bg-slate-800/60 transition-all border-b border-slate-800 group text-left"
+                    >
+                      <div className="w-10 h-10 rounded-xl bg-slate-800 flex items-center justify-center shrink-0 group-hover:bg-orange-600 group-hover:text-white transition-all">
+                        {result.type === 'pillar' && <Folder size={18} />}
+                        {result.type === 'variation' && <Layers size={18} />}
+                        {result.type === 'module' && <BookOpen size={18} />}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-[9px] font-black uppercase tracking-widest text-orange-500 opacity-60">
+                            {result.type === 'pillar' ? 'Pilar' : result.type === 'variation' ? 'Idea' : 'Lección'}
+                          </span>
+                        </div>
+                        <h4 className="text-sm font-bold text-white truncate group-hover:text-orange-500 transition-colors">{result.title}</h4>
+                        <p className="text-[11px] text-slate-500 line-clamp-1 italic">{result.context}</p>
+                      </div>
+                      <ChevronRight size={14} className="ml-auto text-slate-700 opacity-0 group-hover:opacity-100 transition-all" />
+                    </button>
+                  ))}
+                </div>
+              </div>
             )}
           </div>
         </div>
@@ -456,6 +525,8 @@ export default function App() {
                   course ? (
                     <CourseView 
                       course={course}
+                      activeModuleId={activeModuleId || course.modules[0].id}
+                      setActiveModuleId={setActiveModuleId}
                       pillarTitle={selectedPillar?.title || ''}
                       language={language} onBack={() => setStep('VARIATIONS')} t={t} searchTerm={searchTerm} 
                       completedModuleIds={completedModuleIds} userHighlights={userHighlights} 
@@ -486,6 +557,8 @@ export default function App() {
             variations={variations} 
             selectedVariation={selectedVariation} 
             course={course} 
+            activeModuleId={activeModuleId}
+            onSetActiveModule={setActiveModuleId}
             onSelectPillar={handlePillarSelect} 
             onSelectVariation={(v) => handleVariationSelect(v, currentDepth)} 
             isVisible={true} 

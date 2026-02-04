@@ -24,12 +24,14 @@ export const PillarSelection: React.FC<PillarSelectionProps> = ({
   searchTerm 
 }) => {
   const suggestedTopics = useMemo(() => {
-    return [...relatedTopics].slice(0, 4);
+    return Array.isArray(relatedTopics) ? [...relatedTopics].slice(0, 4) : [];
   }, [relatedTopics]);
 
   const highlightMatch = (text: string) => {
-    if (!searchTerm || searchTerm.length < 2) return text;
-    const regex = new RegExp(`(${searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+    if (!text) return "";
+    const term = searchTerm?.trim();
+    if (!term || term.length < 2) return text;
+    const regex = new RegExp(`(${term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
     const parts = text.split(regex);
     return (
       <span>
@@ -53,12 +55,12 @@ export const PillarSelection: React.FC<PillarSelectionProps> = ({
         </div>
         <h2 className="text-4xl font-black text-white tracking-tight">{t.pillars.title}</h2>
         <p className="text-slate-400 text-lg">
-          {t.pillars.subtitle} <span className="font-black text-orange-500">"{topic}"</span>
+          {t.pillars.subtitle} <span className="font-black text-orange-500">"{topic || 'Sin tema'}"</span>
         </p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-[19px] mt-[30px]">
-        {pillars.map((pillar) => (
+        {(Array.isArray(pillars) ? pillars : []).map((pillar) => pillar && (
           <div key={pillar.id} className="relative group flex flex-col h-full">
             <button
               onClick={() => onSelect(pillar)}
@@ -71,12 +73,11 @@ export const PillarSelection: React.FC<PillarSelectionProps> = ({
                 <Folder size={28} />
               </div>
               <h3 className="text-xl font-black text-white mb-3 group-hover:text-orange-500 transition-colors pr-6 leading-tight">
-                {highlightMatch(pillar.title)}
+                {highlightMatch(pillar.title || "")}
               </h3>
               <p className="text-slate-300 text-sm font-medium leading-relaxed mb-8 line-clamp-4">
-                {highlightMatch(pillar.description)}
+                {highlightMatch(pillar.description || "")}
               </p>
-              
               <div className="mt-auto pt-4 border-t border-white/5 w-full">
                 <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-orange-500">
                   <span>Explorar este pilar</span>
@@ -90,16 +91,13 @@ export const PillarSelection: React.FC<PillarSelectionProps> = ({
 
       {suggestedTopics.length > 0 && (
         <div className="pt-12 border-t border-slate-800">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
-            <div className="space-y-1">
-              <div className="flex items-center gap-2 text-orange-500">
-                <Sparkles size={18} className="animate-pulse" />
-                <h3 className="text-xl font-black text-white tracking-tight">{t.pillars.relatedTitle}</h3>
-              </div>
-              <p className="text-sm text-slate-500 font-bold">{t.pillars.relatedSubtitle}</p>
+          <div className="mb-8">
+            <div className="flex items-center gap-2 text-orange-500">
+              <Sparkles size={18} />
+              <h3 className="text-xl font-black text-white tracking-tight">{t.pillars.relatedTitle}</h3>
             </div>
+            <p className="text-sm text-slate-500 font-bold">{t.pillars.relatedSubtitle}</p>
           </div>
-
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-[11px]">
             {suggestedTopics.map((related, idx) => (
               <button
@@ -111,11 +109,11 @@ export const PillarSelection: React.FC<PillarSelectionProps> = ({
                   <div className="w-8 h-8 rounded-lg bg-orange-500/10 flex items-center justify-center text-orange-500 shrink-0 group-hover:bg-orange-600 group-hover:text-white transition-colors">
                     <Zap size={14} />
                   </div>
-                  <span className="text-sm font-black text-slate-200 truncate pr-2 group-hover:text-orange-500 transition-colors">
+                  <span className="text-sm font-black text-slate-200 truncate pr-2 group-hover:text-orange-500">
                     {related}
                   </span>
                 </div>
-                <ArrowRight size={14} className="text-slate-500 group-hover:text-orange-500 transform group-hover:translate-x-1 transition-all shrink-0" />
+                <ArrowRight size={14} className="text-slate-500 transform group-hover:translate-x-1 transition-all" />
               </button>
             ))}
           </div>

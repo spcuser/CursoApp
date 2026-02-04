@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Pillar, 
   Variation, 
@@ -12,8 +12,7 @@ import {
 import { 
   generatePillars, 
   generateVariations, 
-  generateCourse,
-  generateModuleImage
+  generateCourse
 } from './services/geminiService';
 import { TopicInput } from './components/TopicInput';
 import { PillarSelection } from './components/PillarSelection';
@@ -23,7 +22,7 @@ import { LoadingScreen } from './components/LoadingScreen';
 import { SettingsModal } from './components/SettingsModal';
 import { Sidebar } from './components/Sidebar';
 import { 
-  Folder, BrainCircuit, ChevronDown, Settings, Sun, Moon, Search, X, History, Trash2, Clock, FileText, ChevronRight, Upload, Download, Maximize, Minimize, AlertCircle, RefreshCw, Layout, BookOpen, Layers
+  Folder, BrainCircuit, Settings, Sun, Moon, Search, Trash2, FileText, Upload, Download, Maximize, Minimize, Save
 } from 'lucide-react';
 
 const TRANSLATIONS: Record<string, TranslationDictionary> = {
@@ -40,16 +39,7 @@ const TRANSLATIONS: Record<string, TranslationDictionary> = {
   }
 };
 
-// Helper for extracting context snippets
-const getSnippet = (text: string, term: string, radius: number = 40) => {
-  if (!text || !term) return "";
-  const idx = text.toLowerCase().indexOf(term.toLowerCase());
-  if (idx === -1) return text.substring(0, radius * 2) + (text.length > radius * 2 ? "..." : "");
-  
-  const start = Math.max(0, idx - radius);
-  const end = Math.min(text.length, idx + term.length + radius);
-  return (start > 0 ? "..." : "") + text.substring(start, end).replace(/\n/g, ' ') + (end < text.length ? "..." : "");
-};
+const safeGenerateId = () => Math.random().toString(36).substring(2) + Date.now().toString(36);
 
 export default function App() {
   const [step, setStep] = useState<AppStep>('INPUT');
@@ -75,79 +65,23 @@ export default function App() {
   const [savedCourses, setSavedCourses] = useState<SavedCourse[]>([]);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
-  const [showSearchResults, setShowSearchResults] = useState(false);
   
+  const isRestoringRef = useRef(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const searchDropdownRef = useRef<HTMLDivElement>(null);
   const fileImportRef = useRef<HTMLInputElement>(null);
-  const searchInputRef = useRef<HTMLInputElement>(null);
-
   const t = TRANSLATIONS[language];
 
-  // Logic for Global Search Results with Snippets
-  const searchResults = useMemo(() => {
-    if (!searchTerm || searchTerm.length < 2) return null;
-    const term = searchTerm.toLowerCase();
-    const results: { type: 'pillar' | 'variation' | 'module', id: string, title: string, context: string, data?: any }[] = [];
-
-    // 1. Search Pillars
-    pillars.forEach(p => {
-      if (p.title.toLowerCase().includes(term)) {
-        results.push({ type: 'pillar', id: p.id, title: p.title, context: getSnippet(p.description, term), data: p });
-      } else if (p.description.toLowerCase().includes(term)) {
-        results.push({ type: 'pillar', id: p.id, title: p.title, context: getSnippet(p.description, term), data: p });
-      }
-    });
-
-    // 2. Search Variations
-    variations.forEach(v => {
-      if (v.title.toLowerCase().includes(term)) {
-        results.push({ type: 'variation', id: v.id, title: v.title, context: getSnippet(v.description, term), data: v });
-      } else if (v.description.toLowerCase().includes(term)) {
-        results.push({ type: 'variation', id: v.id, title: v.title, context: getSnippet(v.description, term), data: v });
-      }
-    });
-
-    // 3. Search Course Modules (Content & Key Takeaways)
-    if (course && course.modules) {
-      course.modules.forEach(m => {
-        if (m.title.toLowerCase().includes(term)) {
-          results.push({ type: 'module', id: m.id, title: m.title, context: getSnippet(m.keyTakeaway, term), data: m });
-        } else if (m.contentMarkdown.toLowerCase().includes(term)) {
-          results.push({ type: 'module', id: m.id, title: m.title, context: getSnippet(m.contentMarkdown, term), data: m });
-        } else if (m.keyTakeaway.toLowerCase().includes(term)) {
-          results.push({ type: 'module', id: m.id, title: m.title, context: getSnippet(m.keyTakeaway, term), data: m });
-        }
-      });
-    }
-
-    return results;
-  }, [searchTerm, pillars, variations, course]);
-
-  const highlightText = (text: string, term: string) => {
-    if (!term) return text;
-    const parts = text.split(new RegExp(`(${term})`, 'gi'));
-    return (
-      <span>
-        {parts.map((part, i) => 
-          part.toLowerCase() === term.toLowerCase() ? (
-            <span key={i} className="text-orange-500 font-black">{part}</span>
-          ) : part
-        )}
-      </span>
-    );
-  };
-
-  const sortedSavedCourses = useMemo(() => {
-    return [...savedCourses].sort((a, b) => b.lastUpdated - a.lastUpdated);
-  }, [savedCourses]);
-
   useEffect(() => {
-    const handleFsChange = () => {
-      setIsFullscreen(!!document.fullscreenElement);
-    };
+    const handleFsChange = () => setIsFullscreen(!!document.fullscreenElement);
     document.addEventListener('fullscreenchange', handleFsChange);
-    return () => document.removeEventListener('fullscreenchange', handleFsChange);
+    const handleClickOutside = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) setIsHistoryOpen(false);
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFsChange);
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
   }, []);
 
   useEffect(() => {
@@ -155,12 +89,17 @@ export default function App() {
     if (stored) {
       try { 
         const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed)) setSavedCourses(parsed);
-      } catch (e) { console.error("Error cargando historial", e); }
+        if (Array.isArray(parsed)) setSavedCourses(parsed.filter(Boolean));
+      } catch (e) {}
     }
   }, []);
 
   useEffect(() => {
+    if (isRestoringRef.current) return;
+    localStorage.setItem('cursoapp_history', JSON.stringify(savedCourses));
+  }, [savedCourses]);
+
+  const saveCurrentSession = () => {
     if (!currentSessionId || !topic) return;
     
     const sessionData: SavedCourse = {
@@ -172,45 +111,23 @@ export default function App() {
       quizResults: variationScores
     };
 
-    const updated = [sessionData, ...savedCourses.filter(c => c.id !== currentSessionId)].slice(0, 50);
-    
-    try {
-      localStorage.setItem('cursoapp_history', JSON.stringify(updated));
-    } catch (e) {
-      console.warn("LocalStorage lleno, no se pudo guardar el historial.");
-    }
-  }, [step, topic, pillars, selectedPillar, variations, selectedVariation, course, currentDepth, completedModuleIds, userHighlights, variationScores]);
+    setSavedCourses(prev => {
+      const filtered = prev.filter(c => c && c.id !== currentSessionId);
+      return [sessionData, ...filtered].slice(0, 50);
+    });
+  };
 
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setIsHistoryOpen(false);
-      }
-      if (searchDropdownRef.current && !searchDropdownRef.current.contains(event.target as Node)) {
-        setShowSearchResults(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
+    if (isRestoringRef.current) return;
+    const timer = setTimeout(saveCurrentSession, 1000);
+    return () => clearTimeout(timer);
+  }, [step, topic, pillars, selectedPillar, variations, selectedVariation, course, currentDepth, completedModuleIds, userHighlights, variationScores]);
 
-  const toggleFullscreen = () => {
-    if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen().catch((err) => {
-        console.error(`Error al intentar activar pantalla completa: ${err.message}`);
-      });
-    } else {
-      document.exitFullscreen();
-    }
-  };
-
-  const handleRestart = () => { 
-    setStep('INPUT'); setTopic(''); setPillars([]); setCourse(null); setCurrentSessionId(null); setVariationScores({}); setActiveModuleId(null);
-  };
-
-  const loadSavedStrategy = (saved: SavedCourse) => {
+  const loadSavedStrategy = (saved: any) => {
     if (!saved) return;
-    setCurrentSessionId(saved.id || crypto.randomUUID());
+    isRestoringRef.current = true;
+    
+    setCurrentSessionId(saved.id || safeGenerateId());
     setTopic(saved.topic || '');
     setRelatedTopics(saved.relatedTopics || []);
     setPillars(saved.pillars || []);
@@ -220,56 +137,20 @@ export default function App() {
     setCourse(saved.course || null);
     setCurrentDepth(saved.depth || 'standard');
     setCompletedModuleIds(saved.completedModuleIds || []);
-    setUserHighlights(saved.userHighlights || {});
     setVariationScores(saved.quizResults || {});
     setStep(saved.step || 'INPUT');
-    if (saved.course && saved.course.modules && saved.course.modules.length > 0) {
-      setActiveModuleId(saved.course.modules[0].id);
-    }
+    setActiveModuleId(saved.course?.modules?.[0]?.id || null);
+    setUserHighlights(saved.userHighlights || {});
+    
     setIsHistoryOpen(false);
-  };
-
-  const deleteSavedStrategy = (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    const updated = savedCourses.filter(c => c.id !== id);
-    setSavedCourses(updated);
-    try {
-      localStorage.setItem('cursoapp_history', JSON.stringify(updated));
-    } catch(err) {}
+    setTimeout(() => { isRestoringRef.current = false; }, 300);
   };
 
   const handleExportHistory = () => {
-    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(sortedSavedCourses));
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(savedCourses));
     const downloadAnchorNode = document.createElement('a');
     downloadAnchorNode.setAttribute("href", dataStr);
-    downloadAnchorNode.setAttribute("download", `historial_cursoapp_${new Date().toISOString().split('T')[0]}.json`);
-    document.body.appendChild(downloadAnchorNode);
-    downloadAnchorNode.click();
-    downloadAnchorNode.remove();
-  };
-
-  const handleExportCurrentStrategy = async () => {
-    if (!currentSessionId || !topic) return;
-    
-    const sessionData: SavedCourse = {
-      id: currentSessionId, 
-      createdAt: Date.now(), 
-      lastUpdated: Date.now(),
-      step, topic, relatedTopics, pillars, selectedPillar: selectedPillar || undefined,
-      variations, selectedVariation: selectedVariation || undefined, 
-      course: course || undefined,
-      depth: currentDepth, completedModuleIds, userHighlights,
-      quizResults: variationScores
-    };
-
-    const jsonString = JSON.stringify(sessionData, null, 2);
-    const fileName = `estrategia_${topic.toLowerCase().replace(/\s+/g, '_')}.json`;
-
-    // Priorizamos descarga tradicional para evitar errores de permisos en iframes/subframes
-    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(jsonString);
-    const downloadAnchorNode = document.createElement('a');
-    downloadAnchorNode.setAttribute("href", dataStr);
-    downloadAnchorNode.setAttribute("download", fileName);
+    downloadAnchorNode.setAttribute("download", `cursoapp_historial_${Date.now()}.json`);
     document.body.appendChild(downloadAnchorNode);
     downloadAnchorNode.click();
     downloadAnchorNode.remove();
@@ -278,330 +159,194 @@ export default function App() {
   const handleImportHistory = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    
     const reader = new FileReader();
     reader.onload = (event) => {
       try {
-        let content = event.target?.result as string;
-        if (!content) throw new Error("Archivo vacío");
-        
-        content = content.trim();
+        const content = event.target?.result as string;
         const importedData = JSON.parse(content);
-        
-        let normalizedList: SavedCourse[] = [];
-        
-        const processItem = (item: any): SavedCourse | null => {
-          if (!item || typeof item !== 'object') return null;
-          if (item.topic || (item.course && item.course.title)) {
-            return {
-              ...item,
-              id: item.id || crypto.randomUUID(),
-              lastUpdated: item.lastUpdated || Date.now(),
-              createdAt: item.createdAt || Date.now()
-            };
-          }
-          if (item.title && item.modules && Array.isArray(item.modules)) {
-            return {
-              id: crypto.randomUUID(),
-              createdAt: Date.now(),
-              lastUpdated: Date.now(),
-              step: 'COURSE',
-              topic: item.title,
-              course: item
-            };
-          }
-          return null;
-        };
-
-        if (Array.isArray(importedData)) {
-          normalizedList = importedData.map(processItem).filter(i => i !== null) as SavedCourse[];
-        } else {
-          const processed = processItem(importedData);
-          if (processed) normalizedList = [processed];
-        }
-
-        if (normalizedList.length > 0) {
+        let strategies = Array.isArray(importedData) ? importedData : [importedData];
+        const validStrategies = strategies.filter(s => s && (s.topic || s.id));
+        if (validStrategies.length > 0) {
           setSavedCourses(prev => {
-            const existingIds = new Set(prev.map(p => p.id));
-            const newOnes = normalizedList.filter(n => !existingIds.has(n.id));
-            const combined = [...newOnes, ...prev].slice(0, 50);
-            localStorage.setItem('cursoapp_history', JSON.stringify(combined));
-            return combined;
+            const combined = [...validStrategies, ...prev];
+            const unique = Array.from(new Map(combined.map(s => [s.id || safeGenerateId(), s])).values());
+            return unique.slice(0, 50);
           });
-          loadSavedStrategy(normalizedList[0]);
-        } else {
-          alert("El archivo no contiene un formato compatible con CursoAPP.");
+          loadSavedStrategy(validStrategies[0]);
         }
-      } catch (err) { 
-        alert("Error: No se pudo leer el archivo. Asegúrate de que sea un .json válido."); 
-      } finally {
-        if (fileImportRef.current) fileImportRef.current.value = "";
-      }
+      } catch (err) { alert("Error JSON"); }
+      if (e.target) e.target.value = ''; 
     };
     reader.readAsText(file);
   };
 
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) document.documentElement.requestFullscreen();
+    else document.exitFullscreen();
+  };
+
+  const handleRestart = () => { 
+    setStep('INPUT'); setTopic(''); setPillars([]); setCourse(null); setCurrentSessionId(null); 
+  };
+
   const handleTopicSubmit = async (inputTopic: string, contextContent?: string) => {
     setTopic(inputTopic); setLoading(true); setLoadingMessage(t.loading.analyzing);
-    setCurrentSessionId(crypto.randomUUID());
+    setCurrentSessionId(safeGenerateId());
     try {
-      const { pillars: p, relatedTopics: rt } = await generatePillars(inputTopic, language, contextContent);
-      setPillars(p || []); setRelatedTopics(rt || []); setStep('PILLARS');
-    } catch (e) { alert('Error de conexión'); } finally { setLoading(false); }
+      const data = await generatePillars(inputTopic, language, contextContent);
+      setPillars(data.pillars || []); setRelatedTopics(data.relatedTopics || []); setStep('PILLARS');
+    } catch (e) { alert('Error IA'); } finally { setLoading(false); }
   };
 
   const handlePillarSelect = async (pillar: Pillar) => {
-    if (selectedPillar?.id === pillar.id && variations.length > 0) {
-      setStep('VARIATIONS');
-      return;
-    }
-    
     setSelectedPillar(pillar); setLoading(true); setLoadingMessage(t.loading.designing);
     try {
       const v = await generateVariations(pillar.title, topic, language);
       setVariations(v || []); setStep('VARIATIONS');
-    } catch (e) { alert('Error al generar ideas'); } finally { setLoading(false); }
+    } catch (e) { alert('Error'); } finally { setLoading(false); }
   };
 
   const handleVariationSelect = async (v: Variation, d: CourseDepth) => {
-    const isLoadedCourseMatches = course && (course.title === v.title || course.subtitle.includes(v.title));
-    
-    if (isLoadedCourseMatches && selectedVariation?.id === v.id && currentDepth === d) {
-      setStep('COURSE');
-      return;
-    }
-
-    if (isLoadedCourseMatches) {
-        setSelectedVariation(v);
-        setCurrentDepth(d);
-        setStep('COURSE');
-        return;
-    }
-
     setSelectedVariation(v); setCurrentDepth(d); setLoading(true); setLoadingMessage(t.loading.building);
     try {
       const c = await generateCourse(v.title, v.description, topic, d, language);
-      if (c && c.modules && Array.isArray(c.modules) && c.modules.length > 0) {
-        setCourse(c); setStep('COURSE'); setLoading(false);
-        setActiveModuleId(c.modules[0].id);
-        c.modules.forEach(async (mod, idx) => {
-          if (mod.imageDescription) {
-            try {
-              const imgUrl = await generateModuleImage(mod.imageDescription);
-              if (imgUrl) {
-                setCourse(prev => {
-                  if (!prev || !prev.modules[idx]) return prev;
-                  const updatedModules = [...prev.modules];
-                  updatedModules[idx] = { ...updatedModules[idx], imageUrl: imgUrl };
-                  return { ...prev, modules: updatedModules };
-                });
-              }
-            } catch (err) {}
-          }
-        });
-      } else { throw new Error("Curso vacío"); }
-    } catch (e) { setLoading(false); alert('Error al construir el curso.'); }
+      setCourse(c); setStep('COURSE'); setActiveModuleId(c.modules[0]?.id || null);
+    } catch (e) { alert('Error'); } finally { setLoading(false); }
   };
 
-  const handleQuizFinish = (score: number, total: number) => {
-    if (selectedVariation) {
-      setVariationScores(prev => ({
-        ...prev,
-        [selectedVariation.id]: { score, total }
-      }));
-    }
-  };
-
-  const handleSearchResultClick = (result: any) => {
-    setShowSearchResults(false);
-    if (result.type === 'pillar') {
-      handlePillarSelect(result.data);
-    } else if (result.type === 'variation') {
-      handleVariationSelect(result.data, currentDepth);
-    } else if (result.type === 'module') {
-      setStep('COURSE');
-      setActiveModuleId(result.id);
-    }
-  };
+  // Navigation conditions
+  const canGoToPillars = pillars.length > 0;
+  const canGoToVariations = selectedPillar !== null && variations.length > 0;
+  const canGoToCourse = course !== null;
 
   return (
     <div className={`h-screen flex flex-col font-sans overflow-hidden transition-all ${darkMode ? 'bg-slate-950 text-slate-200' : 'bg-slate-50 text-slate-900'}`}>
-      <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} onDownloadBackup={() => {}} t={t} />
+      <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} onDownloadBackup={handleExportHistory} t={t} />
       <input type="file" ref={fileImportRef} className="hidden" accept=".json" onChange={handleImportHistory} />
 
       <header className={`h-24 px-10 border-b flex items-center justify-between shrink-0 z-[100] transition-all
-        ${isFullscreen ? 'rounded-none mx-0 mt-0' : 'rounded-t-[2.5rem] mx-6 mt-10'} 
-        bg-[#444444] border-white/5 shadow-2xl`}>
+        ${isFullscreen ? 'rounded-none mx-0 mt-0' : 'rounded-t-[2.5rem] mx-6 mt-10'} bg-[#444444] border-white/5 shadow-2xl`}>
         <div className="flex items-center gap-12">
           <div className="flex items-center gap-4 cursor-pointer group" onClick={handleRestart}>
-            <div className="w-12 h-12 bg-orange-600 rounded-xl flex items-center justify-center text-white shadow-xl shadow-orange-600/30 group-hover:scale-105 transition-transform">
-              <BrainCircuit size={28} />
-            </div>
-            <span className={`text-2xl font-black tracking-tighter text-white uppercase`}>CURSOAPP</span>
+            <div className="w-12 h-12 bg-orange-600 rounded-xl flex items-center justify-center text-white shadow-xl group-hover:scale-105 transition-transform"><BrainCircuit size={28} /></div>
+            <span className="text-2xl font-black tracking-tighter text-white uppercase">CURSOAPP</span>
           </div>
           
-          <div className="relative w-96" ref={searchDropdownRef}>
+          <div className="relative w-96">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
             <input 
-              ref={searchInputRef}
-              type="text" 
-              placeholder="Búsqueda..." 
-              className={`w-full border-2 rounded-xl py-3 pl-12 pr-12 text-base font-medium focus:ring-0 focus:border-orange-500 transition-all bg-black/30 text-white placeholder:text-slate-500 border-white/10`}
-              value={searchTerm}
-              onFocus={() => setShowSearchResults(true)}
-              onChange={(e) => {
-                setSearchTerm(e.target.value);
-                setShowSearchResults(true);
-              }}
+              type="text" placeholder="Buscar..." 
+              className="w-full bg-black/30 border-2 border-white/10 rounded-xl py-3 pl-12 pr-4 text-white focus:border-orange-500 transition-all outline-none"
+              value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
             />
-            {searchTerm && (
-              <button onClick={() => { setSearchTerm(''); setShowSearchResults(false); }} className="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center bg-orange-500 hover:bg-orange-600 text-white rounded-full transition-all shadow-lg active:scale-90 z-50 border-2 border-white/20"><X size={16} strokeWidth={4} /></button>
-            )}
-
-            {/* SEARCH RESULTS DROPDOWN WITH SNIPPETS */}
-            {showSearchResults && searchResults && searchResults.length > 0 && (
-              <div className="absolute top-full left-0 w-full mt-3 bg-slate-900 border border-slate-800 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.8)] overflow-hidden z-[300] animate-fade-in">
-                <div className="p-4 bg-slate-950/50 border-b border-slate-800 flex items-center justify-between">
-                  <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Resultados Globales</span>
-                  <span className="text-[10px] font-bold text-orange-500">{searchResults.length} encontrados</span>
-                </div>
-                <div className="max-h-[400px] overflow-y-auto custom-scrollbar">
-                  {searchResults.map((result, idx) => (
-                    <button 
-                      key={idx} 
-                      onClick={() => handleSearchResultClick(result)}
-                      className="w-full flex items-center gap-4 p-5 hover:bg-slate-800/60 transition-all border-b border-slate-800 group text-left"
-                    >
-                      <div className="w-10 h-10 rounded-xl bg-slate-800 flex items-center justify-center shrink-0 group-hover:bg-orange-600 group-hover:text-white transition-all">
-                        {result.type === 'pillar' && <Folder size={18} />}
-                        {result.type === 'variation' && <Layers size={18} />}
-                        {result.type === 'module' && <BookOpen size={18} />}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="text-[9px] font-black uppercase tracking-widest text-orange-500 opacity-60">
-                            {result.type === 'pillar' ? 'Pilar' : result.type === 'variation' ? 'Idea' : 'Lección'}
-                          </span>
-                        </div>
-                        <h4 className="text-sm font-bold text-white truncate group-hover:text-orange-500 transition-colors">
-                          {highlightText(result.title, searchTerm)}
-                        </h4>
-                        <p className="text-[11px] text-slate-400 line-clamp-2 leading-relaxed mt-1 font-medium bg-black/20 p-2 rounded-lg border border-white/5">
-                          {highlightText(result.context, searchTerm)}
-                        </p>
-                      </div>
-                      <ChevronRight size={14} className="ml-2 text-slate-700 opacity-0 group-hover:opacity-100 transition-all" />
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
           </div>
         </div>
 
-        <nav className="hidden xl:flex items-center gap-6 text-lg font-medium uppercase tracking-[0.2em] text-slate-400">
-          <button onClick={() => setStep('INPUT')} className={`transition-colors ${step === 'INPUT' ? 'text-white font-black' : 'hover:text-white'}`}>Inicio</button>
-          <span className="opacity-10 text-white">/</span>
-          <button onClick={() => setStep('PILLARS')} className={`transition-colors ${step === 'PILLARS' ? 'text-white font-black' : 'hover:text-white'}`}>Pilares</button>
-          <span className="opacity-10 text-white">/</span>
-          <button onClick={() => setStep('VARIATIONS')} className={`transition-colors ${step === 'VARIATIONS' ? 'text-white font-black' : 'hover:text-white'}`}>Ideas</button>
-          <span className="opacity-10 text-white">/</span>
-          <button onClick={() => setStep('COURSE')} className={`transition-colors ${step === 'COURSE' ? 'text-orange-500 font-black' : 'hover:text-white'}`}>Curso</button>
+        {/* Navigation Links Centrales */}
+        <nav className="hidden lg:flex items-center gap-8">
+          <button 
+            onClick={() => setStep('INPUT')}
+            className={`text-[11px] font-black uppercase tracking-[0.2em] transition-all hover:text-orange-500 ${step === 'INPUT' ? 'text-orange-500 border-b-2 border-orange-500 pb-1' : 'text-slate-400'}`}
+          >
+            {t.steps.input}
+          </button>
+          <button 
+            disabled={!canGoToPillars}
+            onClick={() => setStep('PILLARS')}
+            className={`text-[11px] font-black uppercase tracking-[0.2em] transition-all ${canGoToPillars ? 'hover:text-orange-500 cursor-pointer' : 'opacity-30 cursor-not-allowed'} ${step === 'PILLARS' ? 'text-orange-500 border-b-2 border-orange-500 pb-1' : 'text-slate-400'}`}
+          >
+            {t.steps.pillars}
+          </button>
+          <button 
+            disabled={!canGoToVariations}
+            onClick={() => setStep('VARIATIONS')}
+            className={`text-[11px] font-black uppercase tracking-[0.2em] transition-all ${canGoToVariations ? 'hover:text-orange-500 cursor-pointer' : 'opacity-30 cursor-not-allowed'} ${step === 'VARIATIONS' ? 'text-orange-500 border-b-2 border-orange-500 pb-1' : 'text-slate-400'}`}
+          >
+            {t.steps.variations}
+          </button>
+          <button 
+            disabled={!canGoToCourse}
+            onClick={() => setStep('COURSE')}
+            className={`text-[11px] font-black uppercase tracking-[0.2em] transition-all ${canGoToCourse ? 'hover:text-orange-500 cursor-pointer' : 'opacity-30 cursor-not-allowed'} ${step === 'COURSE' ? 'text-orange-500 border-b-2 border-orange-500 pb-1' : 'text-slate-400'}`}
+          >
+            {t.steps.course}
+          </button>
         </nav>
 
         <div className="flex items-center gap-8 relative" ref={dropdownRef}>
-          <button onClick={() => setIsHistoryOpen(!isHistoryOpen)} title="MIS ESTRATEGIAS" className={`w-14 h-14 rounded-xl flex items-center justify-center transition-all bg-orange-600 text-white hover:bg-orange-700 shadow-xl shadow-orange-600/30 active:scale-90`}><Folder size={24} /></button>
+          <button onClick={saveCurrentSession} className="w-14 h-14 bg-emerald-600/10 hover:bg-emerald-600/20 text-emerald-500 rounded-xl flex items-center justify-center transition-all active:scale-90 shadow-lg" title="Guardar Progreso">
+            <Save size={24} />
+          </button>
+
+          <button onClick={() => setIsHistoryOpen(!isHistoryOpen)} className={`w-14 h-14 rounded-xl flex items-center justify-center transition-all ${isHistoryOpen ? 'bg-orange-600 shadow-orange-500/40' : 'bg-orange-600/10 hover:bg-orange-600/20'} text-white active:scale-90 shadow-lg`}>
+            <Folder size={24} className={isHistoryOpen ? 'text-white' : 'text-orange-500'} />
+          </button>
+          
           {isHistoryOpen && (
-            <div className="absolute top-full mt-4 right-0 w-[450px] rounded-[2.5rem] shadow-[0_30px_60px_rgba(0,0,0,0.6)] border bg-slate-900 border-slate-800 overflow-hidden animate-fade-in-up z-[200]">
-              <div className="p-8 border-b border-slate-800 bg-slate-950/40">
-                <div className="flex justify-between items-center mb-6">
-                  <div className="flex items-center gap-3 text-orange-500"><History size={20} /><span className="text-xs font-black uppercase tracking-widest text-slate-400">Tus Documentos</span></div>
-                </div>
-                <div className="flex gap-4">
-                  <button onClick={handleExportHistory} className="flex-1 flex items-center justify-center gap-2 py-3 bg-slate-800 hover:bg-slate-700 text-white text-[11px] font-black uppercase rounded-xl border border-slate-700 transition-colors"><Download size={16} className="text-orange-500" /><span>Guardar PC</span></button>
-                  <button onClick={() => fileImportRef.current?.click()} className="flex-1 flex items-center justify-center gap-2 py-3 bg-slate-800 hover:bg-slate-700 text-white text-[11px] font-black uppercase rounded-xl border border-slate-700 transition-colors"><Upload size={16} className="text-orange-500" /><span>Cargar PC</span></button>
+            <div className="absolute top-full mt-4 right-0 w-[420px] bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl z-[200] overflow-hidden animate-fade-in-up">
+              <div className="p-6 border-b border-slate-800 bg-slate-950/50 space-y-4">
+                <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Gestión de Archivos</span>
+                <div className="grid grid-cols-2 gap-3">
+                  <button onClick={handleExportHistory} className="flex items-center justify-center gap-2 py-3 bg-slate-800 hover:bg-slate-700 text-white text-[11px] font-black uppercase rounded-xl border border-white/5 transition-colors">
+                    <Download size={16} className="text-orange-500" />
+                    <span>Exportar</span>
+                  </button>
+                  <button onClick={() => fileImportRef.current?.click()} className="flex items-center justify-center gap-2 py-3 bg-slate-800 hover:bg-slate-700 text-white text-[11px] font-black uppercase rounded-xl border border-white/5 transition-colors">
+                    <Upload size={16} className="text-orange-500" />
+                    <span>Cargar JSON</span>
+                  </button>
                 </div>
               </div>
-              <div className="max-h-[400px] overflow-y-auto custom-scrollbar">
-                {sortedSavedCourses.length === 0 ? (<p className="p-16 text-center text-slate-500 italic font-medium">Historial vacío</p>) : (
-                  sortedSavedCourses.map(saved => (
-                    <div key={saved.id} onClick={() => loadSavedStrategy(saved)} className="flex items-center justify-between p-7 border-b border-slate-800 hover:bg-slate-800/40 cursor-pointer group transition-all">
-                      <div className="flex items-center gap-5 min-w-0">
-                        <div className="w-12 h-12 bg-orange-600/10 text-orange-500 rounded-xl flex items-center justify-center group-hover:bg-orange-600 group-hover:text-white transition-all shadow-inner"><FileText size={24} /></div>
-                        <div className="min-w-0"><p className="text-white font-black truncate leading-tight mb-1">{saved.topic}</p><p className="text-[10px] text-slate-500 flex items-center gap-2 uppercase font-bold tracking-wider"><Clock size={12}/>{new Date(saved.lastUpdated).toLocaleDateString()}</p></div>
+              <div className="max-h-[350px] overflow-y-auto custom-scrollbar">
+                {savedCourses.length === 0 ? <p className="p-10 text-center text-slate-500 italic text-sm">No hay registros.</p> : savedCourses.map(s => (
+                  <div key={s.id} onClick={() => loadSavedStrategy(s)} className={`flex items-center justify-between p-5 border-b border-slate-800 hover:bg-slate-800/40 cursor-pointer group ${currentSessionId === s.id ? 'bg-orange-600/5' : ''}`}>
+                    <div className="flex items-center gap-4 min-w-0">
+                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${currentSessionId === s.id ? 'bg-orange-600 text-white' : 'bg-orange-600/10 text-orange-500'}`}><FileText size={20} /></div>
+                      <div className="min-w-0">
+                        <p className={`text-sm font-bold truncate ${currentSessionId === s.id ? 'text-orange-500' : 'text-white'}`}>{s.topic || "Sin título"}</p>
+                        <p className="text-[9px] text-slate-500 uppercase tracking-wider">{new Date(s.lastUpdated).toLocaleString()}</p>
                       </div>
-                      <button onClick={(e) => deleteSavedStrategy(saved.id, e)} className="p-3 text-slate-600 hover:text-rose-500 hover:bg-rose-500/10 rounded-xl opacity-0 group-hover:opacity-100 transition-all"><Trash2 size={18} /></button>
                     </div>
-                  ))
-                )}
+                    <button onClick={(e) => { e.stopPropagation(); setSavedCourses(prev => prev.filter(c => c.id !== s.id)); }} className="p-2 text-slate-600 hover:text-rose-500 opacity-0 group-hover:opacity-100 transition-all"><Trash2 size={16} /></button>
+                  </div>
+                ))}
               </div>
             </div>
           )}
+
           <div className="flex items-center gap-6 pl-8 border-l border-white/10">
-            <button onClick={toggleFullscreen} title={isFullscreen ? "Restaurar" : "Maximizar"} className="text-slate-400 hover:text-white transition-all p-2 rounded-lg hover:bg-white/5">
-              {isFullscreen ? <Minimize size={26} /> : <Maximize size={26} />}
-            </button>
-            <button onClick={() => setDarkMode(!darkMode)} className="text-slate-400 hover:text-white transition-all p-2 rounded-lg hover:bg-white/5">{darkMode ? <Sun size={26} /> : <Moon size={26} />}</button>
-            <button onClick={() => setIsSettingsOpen(true)} className="text-slate-400 hover:text-white transition-all p-2 rounded-lg hover:bg-white/5"><Settings size={26} /></button>
+            <button onClick={toggleFullscreen} className="text-slate-400 hover:text-white p-2 rounded-lg hover:bg-white/5 transition-colors">{isFullscreen ? <Minimize size={26} /> : <Maximize size={26} />}</button>
+            <button onClick={() => setDarkMode(!darkMode)} className="text-slate-400 hover:text-white p-2 rounded-lg hover:bg-white/5 transition-colors">{darkMode ? <Sun size={26} /> : <Moon size={26} />}</button>
+            <button onClick={() => setIsSettingsOpen(true)} className="text-slate-400 hover:text-white p-2 rounded-lg hover:bg-white/5 transition-colors"><Settings size={26} /></button>
           </div>
         </div>
       </header>
 
       <div className={`flex-1 flex overflow-hidden transition-all ${isFullscreen ? 'p-0' : 'pb-6'}`}>
         <main className={`flex-1 overflow-y-auto pt-10 ${darkMode ? 'bg-[#0a0f1d]' : 'bg-slate-50'} transition-all ${isFullscreen ? 'rounded-none' : 'rounded-b-[2.5rem] mx-6 shadow-inner border-x border-b border-white/5'}`}>
-          <div className="max-w-screen-2xl mx-auto min-h-full pb-20">
-            {loading ? (
-              <LoadingScreen message={loadingMessage} />
-            ) : (
-              <div className="w-full h-full">
+          <div className="max-w-5xl mx-auto pb-20">
+            {loading ? <LoadingScreen message={loadingMessage} /> : (
+              <div className="w-full h-full animate-fade-in-up">
                 {step === 'INPUT' && <TopicInput onSubmit={handleTopicSubmit} t={t} />}
-                {step === 'PILLARS' && pillars.length > 0 && <PillarSelection topic={topic} pillars={pillars} relatedTopics={relatedTopics} onSelect={handlePillarSelect} onSelectTopic={handleTopicSubmit} language={language} t={t} searchTerm={searchTerm} />}
-                {step === 'VARIATIONS' && selectedPillar && variations.length > 0 && <VariationSelection pillar={selectedPillar} variations={variations} onSelect={handleVariationSelect} onBack={() => setStep('PILLARS')} t={t} searchTerm={searchTerm} variationScores={variationScores} />}
-                {step === 'COURSE' && (
-                  course ? (
-                    <CourseView 
-                      course={course}
-                      activeModuleId={activeModuleId || course.modules[0].id}
-                      setActiveModuleId={setActiveModuleId}
-                      pillarTitle={selectedPillar?.title || ''}
-                      language={language} onBack={() => setStep('VARIATIONS')} t={t} searchTerm={searchTerm} 
-                      completedModuleIds={completedModuleIds} userHighlights={userHighlights} 
-                      onToggleModule={(id) => setCompletedModuleIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])} 
-                      onUpdateHighlights={(id, h) => setUserHighlights(prev => ({ ...prev, [id]: h }))} 
-                      onGenerateEbook={() => {}} 
-                      onSaveCurrent={handleExportCurrentStrategy}
-                      onQuizFinish={handleQuizFinish}
-                    />
-                  ) : (
-                    <div className="flex flex-col items-center justify-center h-full text-center space-y-8 animate-fade-in py-20">
-                      <div className="w-24 h-24 bg-rose-500/10 text-rose-500 rounded-full flex items-center justify-center"><AlertCircle size={48} /></div>
-                      <h2 className="text-3xl font-black text-white uppercase tracking-tight">Error al cargar curso</h2>
-                      <button onClick={() => setStep('VARIATIONS')} className="flex items-center gap-3 px-10 py-5 bg-orange-600 text-white rounded-2xl font-black uppercase tracking-widest hover:bg-orange-700 transition-all"><RefreshCw size={20} /><span>Reintentar</span></button>
-                    </div>
-                  )
+                {step === 'PILLARS' && <PillarSelection topic={topic} pillars={pillars} relatedTopics={relatedTopics} onSelect={handlePillarSelect} onSelectTopic={handleTopicSubmit} language={language} t={t} searchTerm={searchTerm} />}
+                {step === 'VARIATIONS' && selectedPillar && <VariationSelection pillar={selectedPillar} variations={variations} onSelect={handleVariationSelect} onBack={() => setStep('PILLARS')} t={t} searchTerm={searchTerm} variationScores={variationScores} />}
+                {step === 'COURSE' && course && (
+                  <CourseView 
+                    course={course} activeModuleId={activeModuleId || ""} setActiveModuleId={setActiveModuleId} pillarTitle={selectedPillar?.title || ''} 
+                    t={t} completedModuleIds={completedModuleIds} onToggleModule={(id) => setCompletedModuleIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])}
+                    onUpdateHighlights={(mid, h) => setUserHighlights(prev => ({...prev, [mid]: h}))} language={language} onGenerateEbook={() => {}} 
+                    userHighlights={userHighlights} onQuizComplete={(score, total) => { if(selectedVariation) setVariationScores(prev => ({...prev, [selectedVariation.id]: {score, total}})) }}
+                  />
                 )}
               </div>
             )}
           </div>
         </main>
-        
         {step !== 'INPUT' && (
           <Sidebar 
-            topic={topic} 
-            pillars={pillars} 
-            selectedPillar={selectedPillar} 
-            variations={variations} 
-            selectedVariation={selectedVariation} 
-            course={course} 
-            activeModuleId={activeModuleId}
-            onSetActiveModule={setActiveModuleId}
-            onSelectPillar={handlePillarSelect} 
-            onSelectVariation={(v) => handleVariationSelect(v, currentDepth)} 
-            isVisible={true} 
-            mobileOpen={false} 
-            onCloseMobile={() => {}} 
-            t={t} 
-            variationScores={variationScores}
+            topic={topic} pillars={pillars} selectedPillar={selectedPillar} variations={variations} selectedVariation={selectedVariation} 
+            course={course} activeModuleId={activeModuleId} onSetActiveModule={setActiveModuleId} onSelectPillar={handlePillarSelect} 
+            onSelectVariation={(v) => handleVariationSelect(v, currentDepth)} isVisible={true} mobileOpen={false} onCloseMobile={() => {}} t={t} variationScores={variationScores}
           />
         )}
       </div>

@@ -1,550 +1,349 @@
 
-import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Course, TranslationDictionary, GlossaryTerm, QuizQuestion, CourseModule } from '../types';
-import { 
-  Book, Highlighter, Star, Hash, ArrowLeft, PlusCircle, Trash2, XCircle, Trophy, ClipboardCheck, ArrowRight, RotateCcw, CornerUpLeft, Image as ImageIcon, AlertCircle, ChevronRight, Save, CheckCircle2, X, ZoomIn
-} from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Course, TranslationDictionary, CourseModule, QuizQuestion } from '../types';
+import { Book, Star, Trophy, CheckCircle2, ChevronUp, ChevronDown, Highlighter, HelpCircle, BookOpen, Image as ImageIcon, ArrowRight } from 'lucide-react';
+import { generateModuleImage } from '../services/geminiService';
 
 interface CourseViewProps {
   course: Course;
   activeModuleId: string;
   setActiveModuleId: (id: string) => void;
   pillarTitle: string;
-  onBack: () => void;
   t: TranslationDictionary;
-  searchTerm?: string;
   completedModuleIds: string[];
-  userHighlights?: Record<string, string[]>;
   onToggleModule: (moduleId: string) => void;
   onUpdateHighlights: (moduleId: string, highlights: string[]) => void;
-  onGenerateEbook: () => void;
+  onQuizComplete: (score: number, total: number) => void;
+  userHighlights: Record<string, string[]>;
   language: string;
-  onSaveCurrent?: () => Promise<void>;
-  onQuizFinish?: (score: number, total: number) => void;
 }
 
 const cleanMarkdown = (text: string = '') => {
   if (!text) return '';
-  return text
-    .replace(/\*\*/g, '')
-    .replace(/__/g, '')
-    .replace(/###/g, '')
-    .replace(/##/g, '')
-    .replace(/#/g, '')
-    .replace(/^(\s*)\d+\.\s+/gm, '$1• ');
+  return text.toString().replace(/[#*]/g, '').trim();
 };
 
-const TextProcessor: React.FC<{ 
-  text: string, 
-  glossary: GlossaryTerm[], 
-  onTermClick: (term: string) => void, 
-  onRemoveHighlight: (text: string) => void,
-  searchTerm?: string, 
-  userHighlights: string[],
-  isKeyTakeaway?: boolean
-}> = ({ text = '', glossary = [], onTermClick, onRemoveHighlight, searchTerm, userHighlights = [], isKeyTakeaway = false }) => {
-  const cleanText = cleanMarkdown(text);
-  if (!cleanText) return null;
-
-  const patterns = useMemo(() => {
-    const list = new Set<string>();
-    if (searchTerm && searchTerm.trim().length > 1) list.add(searchTerm.trim());
-    userHighlights.forEach(h => { if (h && h.trim().length > 1) list.add(h.trim()); });
-    patterns_loop: glossary.forEach(g => { if (g.term && g.term.trim().length > 1) list.add(g.term.trim()); });
-    return Array.from(list).sort((a, b) => b.length - a.length);
-  }, [searchTerm, userHighlights, glossary]);
-
-  if (patterns.length === 0) return <span className="font-normal">{cleanText}</span>;
-
-  const patternRegex = patterns.map(t => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
-  const regex = new RegExp(`(${patternRegex})`, 'gi');
-  const parts = cleanText.split(regex);
-
-  return (
-    <span className="font-normal">
-      {parts.map((part, i) => {
-        if (!part) return null;
-        const lowerPart = part.toLowerCase();
-        const isUserHighlight = userHighlights.some(h => h && h.trim().toLowerCase() === lowerPart);
-        const isSearchMatch = searchTerm && lowerPart === searchTerm.trim().toLowerCase();
-
-        if (isUserHighlight || isSearchMatch) {
-          const bgColor = isKeyTakeaway ? '#000080' : (isUserHighlight ? '#f97316' : '#ea580c');
-          const textColor = 'white';
-
-          return (
-            <mark 
-              key={i} 
-              onClick={() => isUserHighlight && onRemoveHighlight(part)}
-              className={`px-1.5 py-0.5 rounded-md font-bold cursor-pointer transition-all group/mark relative`}
-              style={{ 
-                backgroundColor: bgColor, 
-                color: textColor,
-                boxShadow: isKeyTakeaway ? '0 4px 12px rgba(0,0,128,0.4)' : '0 4px 12px rgba(249,115,22,0.4)' 
-              }}
-            >
-              {part}
-              {isUserHighlight && (
-                <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-rose-600 text-[10px] text-white px-2 py-1 rounded opacity-0 group-hover/mark:opacity-100 transition-opacity pointer-events-none whitespace-nowrap font-black uppercase tracking-tighter shadow-xl">Borrar</span>
-              )}
-            </mark>
-          );
-        }
-
-        const glossaryEntry = glossary.find(g => g.term && g.term.trim().toLowerCase() === lowerPart);
-        if (glossaryEntry) {
-          return (
-            <button key={i} onClick={() => onTermClick(glossaryEntry.term)} className="border-b-2 border-orange-500/50 hover:border-orange-500 hover:text-orange-500 transition-all cursor-pointer font-bold inline text-left">
-              {part}
-            </button>
-          );
-        }
-        return part;
-      })}
-    </span>
-  );
+const shuffleArray = <T,>(array: T[]): T[] => {
+  return [...array].sort(() => Math.random() - 0.5);
 };
 
 export const CourseView: React.FC<CourseViewProps> = ({ 
-  course, activeModuleId, setActiveModuleId, pillarTitle, t, searchTerm, completedModuleIds, userHighlights = {}, onToggleModule, onUpdateHighlights, onSaveCurrent, onQuizFinish
+  course, activeModuleId, setActiveModuleId, pillarTitle, t, completedModuleIds, onToggleModule, onUpdateHighlights, userHighlights, onQuizComplete
 }) => {
-  const [viewMode, setViewMode] = useState<'module' | 'glossary' | 'highlights' | 'quiz'>('module');
-  const [selectedGlossaryTerm, setSelectedGlossaryTerm] = useState<string | null>(null);
-  const [selectionBox, setSelectionBox] = useState<{ x: number, y: number, text: string } | null>(null);
-  const [isSaving, setIsSaving] = useState(false);
-  const [saveSuccess, setSaveSuccess] = useState(false);
-  const [expandedImage, setExpandedImage] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<'module' | 'quiz' | 'glossary'>('module');
+  const [moduleImage, setModuleImage] = useState<string>('');
+  const [shuffledQuiz, setShuffledQuiz] = useState<QuizQuestion[]>([]);
+  const [quizState, setQuizState] = useState<{
+    currentIdx: number, 
+    score: number, 
+    finished: boolean,
+    selectedIdx: number | null,
+    showFeedback: boolean
+  }>({
+    currentIdx: 0, 
+    score: 0, 
+    finished: false,
+    selectedIdx: null,
+    showFeedback: false
+  });
   
-  const contentRef = useRef<HTMLDivElement>(null);
-  const lastScrollPosRef = useRef(0);
-  const prevViewModeRef = useRef(viewMode);
-  const prevModuleIdRef = useRef(activeModuleId);
+  const topRef = useRef<HTMLDivElement>(null);
+  const bottomRef = useRef<HTMLDivElement>(null);
 
-  const [quizIndex, setQuizIndex] = useState(0);
-  const [quizAnswers, setQuizAnswers] = useState<number[]>([]);
-  const [quizFinished, setQuizFinished] = useState(false);
-  const [selectedOption, setSelectedOption] = useState<number | null>(null);
-  const [resetCounter, setResetCounter] = useState(0);
+  const activeModule = course.modules.find(m => m.id === activeModuleId) || course.modules[0];
+  const isCompleted = completedModuleIds.includes(activeModule?.id || '');
 
   useEffect(() => {
-    const container = contentRef.current;
-    if (!container) return;
-    if (prevModuleIdRef.current !== activeModuleId) {
-      container.scrollTo({ top: 0, behavior: 'auto' });
-      lastScrollPosRef.current = 0;
-      setViewMode('module'); // Al cambiar de módulo desde el buscador, volvemos a vista de lección
-    } 
-    else if (viewMode === 'module' && prevViewModeRef.current !== 'module') {
-      container.scrollTo({ top: lastScrollPosRef.current, behavior: 'smooth' });
+    if (activeModule?.imageDescription) {
+      generateModuleImage(activeModule.imageDescription).then(setModuleImage);
     }
-    else if (viewMode !== 'module') {
-      container.scrollTo({ top: 0, behavior: 'auto' });
-    }
-    prevViewModeRef.current = viewMode;
-    prevModuleIdRef.current = activeModuleId;
-  }, [activeModuleId, viewMode]);
-
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setExpandedImage(null);
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
-
-  const activeModule: CourseModule | undefined = course?.modules?.find(m => m.id === activeModuleId) || course?.modules?.[0];
-
-  if (!activeModule) {
-    return (
-      <div className="flex flex-col items-center justify-center h-full p-20 text-center bg-slate-900">
-        <AlertCircle className="text-orange-500 mb-4" size={48} />
-        <p className="text-slate-300 font-bold">Lección no disponible.</p>
-      </div>
-    );
-  }
-
-  const isModuleCompleted = completedModuleIds.includes(activeModule.id);
-  const moduleHighlights = userHighlights[activeModule.id] || [];
-
-  const allModulesCompleted = useMemo(() => {
-    return (course?.modules || []).every(m => completedModuleIds.includes(m.id));
-  }, [course?.modules, completedModuleIds]);
-
-  const allQuestions = useMemo(() => {
-    return (course?.modules || []).flatMap(m => m.quiz || []);
-  }, [course?.modules]);
-
-  const currentShuffledOptions = useMemo(() => {
-    const currentQ = allQuestions[quizIndex];
-    if (!currentQ) return [];
-    return currentQ.options
-      .map((text, originalIndex) => ({ text, originalIndex }))
-      .sort(() => Math.random() - 0.5);
-  }, [quizIndex, resetCounter, allQuestions]);
-
-  const handleMouseUp = () => {
-    const selection = window.getSelection();
-    if (!selection || selection.isCollapsed) {
-      setSelectionBox(null);
-      return;
-    }
-    const text = selection.toString().trim();
-    if (text.length > 2) {
-      const range = selection.getRangeAt(0);
-      const rect = range.getBoundingClientRect();
-      setSelectionBox({ x: rect.left + rect.width / 2, y: rect.top - 60, text });
-    }
-  };
-
-  const handleSave = async () => {
-    if (!onSaveCurrent || isSaving) return;
-    setIsSaving(true);
-    try {
-      await onSaveCurrent();
-      setSaveSuccess(true);
-      setTimeout(() => setSaveSuccess(false), 2000);
-    } catch (e) {
-      console.error("Error al guardar", e);
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  const addHighlight = (e: React.MouseEvent) => {
-    e.preventDefault(); e.stopPropagation();
-    if (selectionBox) {
-      const current = userHighlights[activeModule.id] || [];
-      if (!current.includes(selectionBox.text)) onUpdateHighlights(activeModule.id, [...current, selectionBox.text]);
-      setSelectionBox(null);
-      window.getSelection()?.removeAllRanges();
-    }
-  };
-
-  const removeHighlight = (text: string) => {
-    const current = userHighlights[activeModule.id] || [];
-    onUpdateHighlights(activeModule.id, current.filter(h => h.toLowerCase() !== text.toLowerCase()));
-  };
-
-  const clearAllHighlights = () => {
-    onUpdateHighlights(activeModule.id, []);
-  };
-
-  const handleQuizAnswer = (shuffledIdx: number) => {
-    if (selectedOption !== null) return;
-    const originalIdx = currentShuffledOptions[shuffledIdx].originalIndex;
-    setSelectedOption(shuffledIdx);
     
-    const newAnswers = [...quizAnswers, originalIdx];
-    setQuizAnswers(newAnswers);
-
-    setTimeout(() => {
-      if (quizIndex < allQuestions.length - 1) {
-        setQuizIndex(quizIndex + 1);
-        setSelectedOption(null);
-      } else {
-        const correctOnes = newAnswers.filter((originalAns, i) => originalAns === allQuestions[i].correctAnswerIndex).length;
-        if (onQuizFinish) onQuizFinish(correctOnes, allQuestions.length);
-        setQuizFinished(true);
-      }
-    }, 1500);
-  };
-
-  const resetQuiz = () => {
-    setQuizIndex(0);
-    setQuizAnswers([]);
-    setQuizFinished(false);
-    setSelectedOption(null);
-    setResetCounter(prev => prev + 1); 
-  };
-
-  const handleTermClick = (term: string) => {
-    if (contentRef.current && viewMode === 'module') {
-      lastScrollPosRef.current = contentRef.current.scrollTop;
+    // Barajar preguntas al cambiar de módulo
+    if (activeModule?.quiz) {
+      setShuffledQuiz(shuffleArray(activeModule.quiz));
     }
-    setSelectedGlossaryTerm(term);
-    setViewMode('glossary');
+
+    setQuizState({currentIdx: 0, score: 0, finished: false, selectedIdx: null, showFeedback: false});
+    setViewMode('module');
+    
+    // Al cambiar de módulo, forzar scroll arriba
     setTimeout(() => {
-      document.getElementById(`term-${term}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      topRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }, 100);
-  };
+  }, [activeModuleId]);
 
   const scrollToTop = () => {
-    contentRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+    topRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
   const scrollToBottom = () => {
-    if (contentRef.current) {
-      contentRef.current.scrollTo({ 
-        top: contentRef.current.scrollHeight, 
-        behavior: 'smooth' 
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+  };
+
+  const handleHighlight = () => {
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0) return;
+    const text = selection.toString().trim();
+    if (!text) return;
+    const currentHighlights = userHighlights[activeModule.id] || [];
+    if (!currentHighlights.includes(text)) {
+      onUpdateHighlights(activeModule.id, [...currentHighlights, text]);
+    }
+    // Deseleccionar texto después de resaltar para evitar doble selección visual
+    selection.removeAllRanges();
+  };
+
+  const handleRemoveHighlight = (text: string) => {
+    const currentHighlights = userHighlights[activeModule.id] || [];
+    const newHighlights = currentHighlights.filter(h => h !== text);
+    onUpdateHighlights(activeModule.id, newHighlights);
+  };
+
+  const renderContentWithHighlights = (text: string) => {
+    const highlights = userHighlights[activeModule.id] || [];
+    if (highlights.length === 0) return text;
+    let parts: (string | React.ReactNode)[] = [text];
+    
+    highlights.forEach(h => {
+      const newParts: (string | React.ReactNode)[] = [];
+      parts.forEach(p => {
+        if (typeof p !== 'string') { newParts.push(p); return; }
+        const split = p.split(h);
+        split.forEach((s, i) => {
+          newParts.push(s);
+          if (i < split.length - 1) newParts.push(`__MARK__${h}__MARK__`);
+        });
       });
+      parts = newParts;
+    });
+
+    return parts.map((p, i) => {
+      if (typeof p === 'string' && p.includes('__MARK__')) {
+        const content = p.replace(/__MARK__/g, '');
+        return (
+          <mark 
+            key={i} 
+            className="bg-orange-500 text-white rounded-[4px] px-1 cursor-pointer hover:bg-orange-600 transition-colors inline font-bold"
+            title="Haz clic para eliminar este resaltado"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleRemoveHighlight(content);
+            }}
+          >
+            {content}
+          </mark>
+        );
+      }
+      return p;
+    });
+  };
+
+  const handleQuizAnswer = (idx: number) => {
+    if (quizState.showFeedback || shuffledQuiz.length === 0) return;
+
+    const currentQuestion = shuffledQuiz[quizState.currentIdx];
+    const isCorrect = idx === currentQuestion.correctAnswerIndex;
+    setQuizState(prev => ({ 
+      ...prev, 
+      selectedIdx: idx, 
+      showFeedback: true,
+      score: isCorrect ? prev.score + 1 : prev.score
+    }));
+  };
+
+  const handleNextQuestion = () => {
+    const nextIdx = quizState.currentIdx + 1;
+    if (nextIdx < shuffledQuiz.length) {
+      setQuizState(prev => ({
+        ...prev,
+        currentIdx: nextIdx,
+        selectedIdx: null,
+        showFeedback: false
+      }));
+    } else {
+      setQuizState(prev => ({ ...prev, finished: true, showFeedback: false }));
+      onQuizComplete(quizState.score, shuffledQuiz.length);
     }
   };
 
+  const handleResetQuiz = () => {
+    if (activeModule?.quiz) {
+      setShuffledQuiz(shuffleArray(activeModule.quiz));
+    }
+    setQuizState({currentIdx: 0, score: 0, finished: false, selectedIdx: null, showFeedback: false});
+  };
+
+  if (!activeModule) return null;
+
   return (
-    <div className="flex h-full w-full overflow-hidden" onMouseUp={handleMouseUp}>
-      {expandedImage && (
-        <div 
-          className="fixed inset-0 z-[1000] bg-black/95 backdrop-blur-md flex items-center justify-center p-4 md:p-12 cursor-zoom-out animate-fade-in"
-          onClick={() => setExpandedImage(null)}
-        >
-          <button 
-            className="absolute top-10 right-10 text-white hover:text-orange-500 transition-all bg-white/10 p-4 rounded-full hover:scale-110 active:scale-90 border border-white/20 z-10 shadow-2xl"
-            onClick={() => setExpandedImage(null)}
-          >
-            <X size={32} />
-          </button>
-          <img 
-            src={expandedImage} 
-            alt="Expanded view" 
-            className="max-w-full max-h-full object-contain rounded-2xl shadow-[0_0_100px_rgba(0,0,0,1)] animate-fade-in-up transition-transform cursor-zoom-out"
-          />
+    <div className="flex w-full gap-6 animate-fade-in pb-20 relative">
+      {/* Marcador de inicio para scroll */}
+      <div ref={topRef} className="absolute top-0 h-0 w-0" />
+
+      {/* Navegación Izquierda (Índice) */}
+      <aside className="w-72 space-y-4 shrink-0 sticky top-0 h-fit max-h-[calc(100vh-160px)] overflow-y-auto custom-scrollbar pr-2">
+        <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] mb-6 pl-2">ÍNDICE</h3>
+        <div className="space-y-3">
+          {course.modules.map((m, i) => (
+            <button key={m.id} onClick={() => setActiveModuleId(m.id)} className={`w-full flex items-center gap-4 p-5 rounded-2xl text-left transition-all ${activeModuleId === m.id ? 'bg-white text-slate-900 shadow-2xl scale-105' : 'bg-[#444444] text-slate-400 border border-white/5 hover:border-orange-500'}`}>
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-black ${activeModuleId === m.id ? 'bg-orange-600 text-white' : completedModuleIds.includes(m.id) ? 'bg-emerald-500 text-white' : 'bg-slate-800'}`}>{completedModuleIds.includes(m.id) ? '✓' : i + 1}</div>
+              <span className="text-sm font-bold truncate">{cleanMarkdown(m.title)}</span>
+            </button>
+          ))}
         </div>
-      )}
-
-      <aside className="w-[440px] border-r border-slate-900 bg-slate-950 flex flex-col p-8 overflow-y-auto shrink-0">
-        <h3 className="text-[12px] font-black text-slate-500 uppercase tracking-[0.4em] mb-8">CONTENIDO</h3>
-        <div className="space-y-[19px] flex-1">
-          {(course?.modules || []).map((mod, idx) => {
-            const isActive = activeModuleId === mod.id && viewMode === 'module';
-            const isCompleted = completedModuleIds.includes(mod.id);
-            return (
-              <button 
-                key={mod.id} onClick={() => { 
-                  if (activeModuleId !== mod.id) lastScrollPosRef.current = 0;
-                  setViewMode('module'); 
-                  setActiveModuleId(mod.id); 
-                }}
-                className={`w-[calc(100%-10px)] flex items-center gap-6 p-7 rounded-[2.5rem] transition-all text-left group mx-[5px] ${isActive ? 'bg-white text-slate-950 shadow-2xl scale-[1.03]' : 'bg-[#444444] border border-white/5 text-slate-300 hover:border-orange-500/50'} ${isCompleted && !isActive ? 'opacity-80' : ''}`}
-              >
-                <div className={`w-12 h-12 rounded-full flex items-center justify-center text-lg font-black shrink-0 transition-colors ${isActive ? 'bg-orange-500 text-white' : isCompleted ? 'bg-emerald-500/20 text-emerald-500' : 'bg-slate-800/50 text-slate-500'}`}>{idx + 1}</div>
-                <span className={`font-bold text-lg leading-snug flex-1 ${isActive ? 'text-slate-900' : 'group-hover:text-white'}`}>{cleanMarkdown(mod.title)}</span>
-              </button>
-            );
-          })}
-
-          <button 
-            disabled={!allModulesCompleted}
-            onClick={() => { 
-              if (allModulesCompleted) {
-                setViewMode('quiz');
-                resetQuiz();
-              }
-            }}
-            className={`w-[calc(100%-10px)] flex items-center gap-6 p-7 rounded-[2.5rem] transition-all text-left group mx-[5px] mt-8 ${!allModulesCompleted ? 'opacity-30 grayscale cursor-not-allowed border-dashed border-slate-700' : viewMode === 'quiz' ? 'bg-orange-600 text-white shadow-2xl scale-[1.03]' : 'bg-orange-500/10 border-2 border-orange-500/30 text-orange-500 hover:bg-orange-500/20'}`}
-          >
-            <div className={`w-12 h-12 rounded-full flex items-center justify-center text-lg font-black shrink-0 ${viewMode === 'quiz' ? 'bg-white text-orange-600' : 'bg-orange-500 text-white'}`}><ClipboardCheck size={24} /></div>
-            <div className="flex-1">
-              <span className="font-black text-lg leading-tight block">EXAMEN FINAL</span>
-              {!allModulesCompleted && <span className="text-[10px] uppercase tracking-widest opacity-60">Bloqueado</span>}
-            </div>
-          </button>
-        </div>
-
-        <div className="grid grid-cols-2 gap-4 mt-12">
-          <button onClick={() => setViewMode('glossary')} className={`flex flex-col items-center justify-center gap-3 p-6 rounded-3xl border transition-all ${viewMode === 'glossary' ? 'bg-orange-600 text-white border-orange-500 shadow-lg shadow-orange-500/30' : 'bg-[#444444] border-white/5 text-slate-400 hover:text-white hover:bg-slate-800'}`}><Book size={24} /><span className="text-[11px] font-black uppercase tracking-widest bg-black/20 px-3 py-1 rounded">GLOSARIO</span></button>
-          <button onClick={() => setViewMode('highlights')} className={`flex flex-col items-center justify-center gap-3 p-6 rounded-3xl border transition-all ${viewMode === 'highlights' ? 'bg-orange-600 text-white border-orange-500 shadow-lg shadow-orange-500/30' : 'bg-[#444444] border-white/5 text-slate-400 hover:text-white hover:bg-slate-800'}`}><Highlighter size={24} /><span className="text-[11px] font-black uppercase tracking-widest bg-black/20 px-3 py-1 rounded">MIS NOTAS</span></button>
+        
+        <div className="pt-8 space-y-3">
+          <button onClick={() => setViewMode('quiz')} className={`w-full flex items-center gap-3 p-4 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${viewMode === 'quiz' ? 'bg-orange-600 text-white' : 'bg-slate-800 text-slate-500 hover:text-white'}`}><HelpCircle size={18} /><span>EXAMEN</span></button>
+          <button onClick={() => setViewMode('glossary')} className={`w-full flex items-center gap-3 p-4 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${viewMode === 'glossary' ? 'bg-orange-600 text-white' : 'bg-slate-800 text-slate-500 hover:text-white'}`}><BookOpen size={18} /><span>GLOSARIO</span></button>
         </div>
       </aside>
 
-      <div className="flex-1 relative overflow-hidden bg-[#0a0f1d]">
+      {/* Área de Lectura Central */}
+      <div className="flex-1 min-w-0">
+        <div className="mb-12">
+          <p className="text-[10px] font-black text-orange-500 uppercase tracking-[0.3em] mb-2">{pillarTitle}</p>
+          <h2 className="text-4xl font-black text-white leading-none tracking-tighter">{course.title}</h2>
+        </div>
+
         {viewMode === 'module' && (
-          <div className="absolute right-4 top-1/2 -translate-y-1/2 z-[250] flex flex-col gap-8 animate-fade-in pointer-events-auto">
-            <button onClick={scrollToTop} className="group relative w-12 h-12 flex items-center justify-center transition-all hover:scale-110 active:scale-90" title="Volver al principio">
-              <svg width="44" height="44" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" className="drop-shadow-[0_0_15px_rgba(249,115,22,0.4)]">
-                <path d="M20 5L35 30H5L20 5Z" fill="white" stroke="#F97316" strokeWidth="5" strokeLinejoin="round"/>
-              </svg>
-            </button>
-            <button onClick={scrollToBottom} className="group relative w-12 h-12 flex items-center justify-center transition-all hover:scale-110 active:scale-90" title="Ir al final">
-              <svg width="44" height="44" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" className="drop-shadow-[0_0_15px_rgba(249,115,22,0.4)]">
-                <path d="M20 35L5 10H35L20 35Z" fill="white" stroke="#F97316" strokeWidth="5" strokeLinejoin="round"/>
-              </svg>
-            </button>
+          <div className="space-y-12 animate-fade-in-up">
+            {moduleImage && (
+              <div className="w-full aspect-video rounded-[3rem] overflow-hidden border border-white/5 shadow-2xl bg-slate-900">
+                <img src={moduleImage} alt="Ilustración AI" className="w-full h-full object-cover opacity-80" />
+              </div>
+            )}
+            <div className="p-10 bg-gradient-to-br from-orange-600 to-orange-500 rounded-[3rem] text-white shadow-2xl relative overflow-hidden">
+               <Star className="absolute top-[-10px] right-[-10px] w-32 h-32 opacity-10 rotate-12" />
+               <div className="relative z-10">
+                 <h4 className="text-[10px] font-black uppercase tracking-widest mb-4 opacity-80">LO MÁS IMPORTANTE</h4>
+                 <p className="text-2xl font-black leading-tight tracking-tight">{cleanMarkdown(activeModule.keyTakeaway)}</p>
+               </div>
+            </div>
+            <div className="bg-[#444444]/20 p-16 rounded-[4rem] border border-white/5 shadow-inner relative group" onMouseUp={handleHighlight}>
+              <div className="absolute top-8 right-8 text-slate-600 group-hover:text-orange-500 transition-colors pointer-events-none">
+                <Highlighter size={24} />
+              </div>
+              <h1 className="text-5xl font-black text-white leading-none tracking-tighter mb-12">{cleanMarkdown(activeModule.title)}</h1>
+              <div className="prose prose-invert max-w-none text-xl text-slate-300 font-medium leading-relaxed space-y-8">
+                {activeModule.contentMarkdown.split('\n').map((line, i) => (
+                  <p key={i}>{renderContentWithHighlights(cleanMarkdown(line))}</p>
+                ))}
+              </div>
+              <div className="pt-16 mt-16 border-t border-white/5">
+                <button onClick={() => onToggleModule(activeModule.id)} className={`w-full py-8 rounded-[2.5rem] font-black uppercase tracking-[0.3em] text-sm transition-all active:scale-[0.98] ${isCompleted ? 'bg-emerald-600 text-white' : 'bg-orange-600 text-white shadow-orange-500/30 shadow-2xl hover:bg-orange-700'}`}>
+                  {isCompleted ? 'LECCIÓN COMPLETADA ✓' : 'MARCAR COMO COMPLETADO'}
+                </button>
+              </div>
+            </div>
           </div>
         )}
 
-        <div ref={contentRef} className="h-full overflow-y-auto px-16 py-10 scroll-smooth select-text relative custom-scrollbar">
-          {selectionBox && (
-            <button onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); }} onClick={addHighlight} style={{ left: selectionBox.x, top: selectionBox.y }} className="fixed -translate-x-1/2 z-[400] flex items-center gap-3 px-6 py-3 bg-orange-500 text-white rounded-full shadow-2xl font-black text-sm uppercase tracking-widest animate-fade-in-up border-2 border-white/40 hover:scale-110 hover:bg-orange-600 transition-all cursor-pointer"><PlusCircle size={20} /><span>Resaltar</span></button>
-          )}
-
-          <div className="max-w-4xl mx-auto space-y-16">
-            {viewMode === 'module' ? (
-              <>
-                <div className="flex items-center justify-between border-b border-white/5 pb-8 animate-fade-in-up">
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-3 text-[10px] font-black text-orange-500 uppercase tracking-[0.3em] opacity-80">
-                      <span>{cleanMarkdown(pillarTitle)}</span>
-                      <ChevronRight size={10} className="text-slate-600" />
-                      <span className="text-slate-500">Estrategia</span>
-                    </div>
-                    <h2 className="text-2xl font-black text-white tracking-tight leading-tight max-w-2xl">{cleanMarkdown(course.title)}</h2>
-                  </div>
-                  
-                  {onSaveCurrent && (
-                    <button 
-                      onClick={handleSave}
-                      disabled={isSaving}
-                      title="Actualizar Archivo Original (Sobrescribir)"
-                      className={`group relative flex flex-col items-center gap-2 p-5 rounded-[1.5rem] transition-all shadow-xl active:scale-90 ${saveSuccess ? 'bg-emerald-600 shadow-emerald-500/40' : 'bg-orange-600/10 hover:bg-orange-600 border border-orange-500/30 hover:shadow-orange-500/40'}`}
-                    >
-                      {saveSuccess ? (
-                        <CheckCircle2 size={32} className="text-white animate-bounce" />
-                      ) : (
-                        <Save size={32} className={`transition-colors ${isSaving ? 'animate-pulse text-orange-500' : 'text-orange-500 group-hover:text-white'}`} />
-                      )}
-                      <span className={`text-[9px] font-black uppercase tracking-widest transition-colors ${saveSuccess ? 'text-white' : 'text-orange-400 group-hover:text-white'}`}>
-                        {saveSuccess ? 'Guardado' : isSaving ? 'Guardando...' : 'Actualizar'}
-                      </span>
-                    </button>
-                  )}
+        {viewMode === 'quiz' && (
+          <div className="p-16 bg-[#444444] rounded-[4rem] border border-white/5 animate-fade-in shadow-2xl text-center relative overflow-hidden">
+            <Trophy size={64} className="text-orange-500 mx-auto mb-8" />
+            {!quizState.finished ? (
+              <div className="space-y-8 text-left max-w-2xl mx-auto">
+                <div className="flex justify-between items-center">
+                   <p className="text-sm font-black text-orange-500 uppercase tracking-widest">Pregunta {quizState.currentIdx + 1} de {shuffledQuiz.length}</p>
                 </div>
+                {shuffledQuiz.length > 0 && (
+                  <>
+                    <h3 className="text-3xl font-black text-white">{shuffledQuiz[quizState.currentIdx].question}</h3>
+                    <div className="grid grid-cols-1 gap-4">
+                      {shuffledQuiz[quizState.currentIdx].options.map((opt, i) => {
+                        const isSelected = quizState.selectedIdx === i;
+                        const isCorrect = i === shuffledQuiz[quizState.currentIdx].correctAnswerIndex;
+                        
+                        let feedbackClass = "bg-slate-900 border-white/5 text-slate-300";
+                        if (quizState.showFeedback) {
+                          if (isSelected) {
+                            feedbackClass = isCorrect 
+                              ? "bg-emerald-500/20 border-emerald-500 text-emerald-300" 
+                              : "bg-rose-500/20 border-rose-500 text-rose-300";
+                          } else if (isCorrect) {
+                            feedbackClass = "bg-emerald-500/10 border-emerald-500/30 text-emerald-400";
+                          }
+                        }
 
-                <div className="p-10 bg-orange-600 rounded-[2.5rem] text-white shadow-2xl flex flex-col items-center text-center space-y-6">
-                  <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.2em] opacity-90"><Star size={16} fill="currentColor" /><span>{t.course.keyTakeaway}</span></div>
-                  <div className="text-2xl font-medium leading-[1.4] select-text">
-                    <TextProcessor 
-                      text={activeModule.keyTakeaway} 
-                      glossary={course?.glossary || []} 
-                      onTermClick={handleTermClick} 
-                      onRemoveHighlight={removeHighlight} 
-                      searchTerm={searchTerm} 
-                      userHighlights={moduleHighlights}
-                      isKeyTakeaway={true}
-                    />
-                  </div>
-                </div>
-
-                <div className="relative group animate-fade-in-up min-h-[100px] flex flex-col">
-                  <div className="bg-slate-800 rounded-t-xl p-3 flex items-center gap-2 border-x border-t border-white/10 shadow-2xl">
-                    <div className="flex gap-1.5">
-                      <div className="w-2.5 h-2.5 rounded-full bg-rose-500/80" />
-                      <div className="w-2.5 h-2.5 rounded-full bg-amber-500/80" />
-                      <div className="w-2.5 h-2.5 rounded-full bg-emerald-500/80" />
+                        return (
+                          <button 
+                            key={i} 
+                            onClick={() => handleQuizAnswer(i)} 
+                            disabled={quizState.showFeedback}
+                            className={`p-6 border rounded-2xl text-left text-lg font-bold transition-all ${feedbackClass} ${!quizState.showFeedback && 'hover:border-orange-500 hover:bg-slate-800 hover:text-white'}`}
+                          >
+                            {opt}
+                          </button>
+                        );
+                      })}
                     </div>
-                    <div className="flex-1 text-center pr-10">
-                       <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest opacity-50">Visualización • AI Generated</span>
-                    </div>
-                  </div>
-                  <div 
-                    onClick={() => activeModule.imageUrl && setExpandedImage(activeModule.imageUrl)}
-                    className="relative overflow-hidden border-x border-b border-white/10 rounded-b-xl shadow-[0_40px_100px_rgba(0,0,0,0.6)] bg-slate-900/50 flex items-center justify-center min-h-[250px] cursor-zoom-in"
+                  </>
+                )}
+                {quizState.showFeedback && (
+                  <button 
+                    onClick={handleNextQuestion}
+                    className="w-full mt-12 py-8 bg-orange-600 hover:bg-orange-700 text-white rounded-[2rem] font-black uppercase tracking-[0.3em] text-sm flex items-center justify-center gap-4 transition-all active:scale-[0.98] shadow-2xl shadow-orange-500/30 animate-fade-in-up"
                   >
-                    {activeModule.imageUrl ? (
-                      <>
-                        <img 
-                          src={activeModule.imageUrl} 
-                          alt={activeModule.title} 
-                          className="w-full h-auto object-cover hover:scale-105 transition-transform duration-1000" 
-                          onError={(e) => {
-                            const target = e.target as HTMLImageElement;
-                            target.style.display = 'none';
-                          }}
-                        />
-                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all flex items-center justify-center opacity-0 group-hover:opacity-100">
-                          <div className="bg-orange-600 p-4 rounded-full text-white shadow-2xl scale-50 group-hover:scale-100 transition-all">
-                            <ZoomIn size={32} />
-                          </div>
-                        </div>
-                      </>
-                    ) : (
-                      <div className="flex flex-col items-center gap-3 text-slate-700 animate-pulse">
-                        <ImageIcon size={40} />
-                        <span className="text-[10px] font-black uppercase tracking-widest">Generando visualización...</span>
-                      </div>
-                    )}
-                    <div className="absolute inset-0 bg-gradient-to-t from-slate-950/40 to-transparent pointer-events-none" />
-                  </div>
-                </div>
-
-                <div className="space-y-10">
-                  <h1 className="text-4xl font-black text-white tracking-tight leading-tight">{cleanMarkdown(activeModule.title)}</h1>
-                  <div className="text-xl leading-[1.8] text-slate-300 space-y-10 select-text">
-                    {(activeModule.contentMarkdown || '').split(/\n\n/).map((block, idx) => (
-                      <div key={idx} className="whitespace-pre-wrap"><TextProcessor text={block} glossary={course?.glossary || []} onTermClick={handleTermClick} onRemoveHighlight={removeHighlight} searchTerm={searchTerm} userHighlights={moduleHighlights} /></div>
-                    ))}
-                  </div>
-                </div>
-                <div className="pt-12 pb-16 flex justify-center">
-                  <button onClick={() => onToggleModule(activeModule.id)} className={`px-12 py-5 rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-2xl ${isModuleCompleted ? 'bg-emerald-600 text-white' : 'bg-orange-600 text-white hover:bg-orange-700 shadow-orange-500/30'}`}>{isModuleCompleted ? '✓ MÓDULO COMPLETADO' : 'MARCAR COMO COMPLETADO'}</button>
-                </div>
-              </>
-            ) : viewMode === 'quiz' ? (
-              <div className="animate-fade-in-up space-y-12">
-                {!quizFinished ? (
-                  <div className="space-y-10">
-                    <div className="flex justify-between items-end">
-                      <div>
-                        <h2 className="text-4xl font-black text-white mb-3 uppercase tracking-tighter">Examen Final</h2>
-                        <p className="text-slate-500 font-bold text-xs uppercase tracking-widest">Pregunta {quizIndex + 1} de {allQuestions.length}</p>
-                      </div>
-                      <div className="w-20 h-20 relative flex items-center justify-center">
-                        <svg className="w-full h-full transform -rotate-90" viewBox="0 0 128 128">
-                          <circle cx="64" cy="64" r="50" fill="transparent" stroke="currentColor" strokeWidth="8" className="text-slate-800" />
-                          <circle cx="64" cy="64" r="50" fill="transparent" stroke="currentColor" strokeWidth="8" strokeDasharray={314} strokeDashoffset={314 - (314 * (quizIndex + 1)) / (allQuestions.length || 1)} className="text-orange-500 transition-all duration-1000" />
-                        </svg>
-                        <span className="absolute text-lg font-black text-white">{Math.round(((quizIndex + 1) / (allQuestions.length || 1)) * 100)}%</span>
-                      </div>
-                    </div>
-                    <div className="bg-[#444444] p-12 rounded-[2.5rem] border border-white/5 shadow-2xl space-y-10">
-                      <p className="text-2xl font-bold text-white leading-snug">{allQuestions[quizIndex]?.question}</p>
-                      <div className="grid grid-cols-1 gap-5">
-                        {currentShuffledOptions.map((optObj, i) => {
-                          const isSelected = selectedOption === i;
-                          const isCorrect = optObj.originalIndex === allQuestions[quizIndex].correctAnswerIndex;
-                          const bgColor = isSelected ? (isCorrect ? 'bg-emerald-600 border-emerald-400' : 'bg-rose-600 border-rose-400') : 'bg-black/20 border-white/10 hover:border-orange-500 hover:bg-white/5';
-                          return (
-                            <button key={i} onClick={() => handleQuizAnswer(i)} className={`p-6 rounded-2xl border transition-all text-left text-lg font-medium flex items-center justify-between group ${bgColor}`}>
-                              <span className={isSelected ? 'text-white' : 'text-slate-300 group-hover:text-white'}>{optObj.text}</span>
-                              {isSelected && (isCorrect ? <Trophy size={20} /> : <RotateCcw size={20} />)}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex flex-col items-center text-center space-y-10 py-16">
-                    <div className="w-40 h-40 bg-orange-600 rounded-full flex items-center justify-center text-white shadow-[0_0_80px_rgba(249,115,22,0.4)] animate-bounce"><Trophy size={60} /></div>
-                    <div>
-                      <h2 className="text-5xl font-black text-white mb-4 uppercase tracking-tight">¡EXAMEN FINALIZADO!</h2>
-                      <p className="text-2xl text-slate-400 font-medium max-w-2xl mx-auto">Has completado el curso con éxito.</p>
-                    </div>
-                    <div className="bg-white text-slate-950 px-12 py-8 rounded-[2rem] text-7xl font-black shadow-2xl">
-                      {quizAnswers.filter((ansIndex, i) => ansIndex === allQuestions[i].correctAnswerIndex).length} / {allQuestions.length}
-                    </div>
-                    <div className="flex gap-4">
-                      <button onClick={resetQuiz} className="flex items-center gap-3 px-10 py-5 bg-[#444444] text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-700 transition-all"><RotateCcw size={20} /><span>Reintentar</span></button>
-                      <button onClick={() => setViewMode('module')} className="flex items-center gap-3 px-10 py-5 bg-orange-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-orange-700 transition-all shadow-xl shadow-orange-600/30"><span>Terminar Curso</span><ArrowRight size={20} /></button>
-                    </div>
-                  </div>
+                    <span>SIGUIENTE PREGUNTA</span>
+                    <ArrowRight size={24} />
+                  </button>
                 )}
               </div>
-            ) : viewMode === 'glossary' ? (
-              <div className="space-y-12 animate-fade-in-up">
-                 <div className="bg-[#444444] p-12 rounded-[3.5rem] border border-white/5 shadow-2xl">
-                   <h2 className="text-4xl font-black text-white mb-12 uppercase tracking-tight text-center">GLOSARIO</h2>
-                   <div className="grid grid-cols-1 gap-6">
-                     {(course?.glossary || []).map((g, idx) => {
-                       const isSelected = selectedGlossaryTerm === g.term;
-                       return (
-                         <div key={idx} id={`term-${g.term}`} onClick={() => setViewMode('module')} className={`group relative p-10 rounded-3xl border-2 transition-all cursor-pointer hover:scale-[1.02] ${isSelected ? 'bg-orange-600 border-orange-400 shadow-2xl shadow-orange-600/40' : 'bg-black/20 border-white/5 hover:border-orange-500/50'}`}>
-                           <div className={`absolute top-8 right-8 transition-all ${isSelected ? 'text-white' : 'text-orange-500 opacity-0 group-hover:opacity-100'}`}><CornerUpLeft size={28} strokeWidth={2.5} /></div>
-                           <h3 className={`text-2xl font-black uppercase mb-3 tracking-tight ${isSelected ? 'text-white' : 'text-orange-500'}`}>{g.term}</h3>
-                           <p className={`text-xl leading-relaxed font-medium ${isSelected ? 'text-white' : 'text-slate-300'}`}>{g.definition}</p>
-                         </div>
-                       );
-                     })}
-                   </div>
-                 </div>
-              </div>
             ) : (
-              <div className="space-y-12 animate-fade-in-up">
-                 <div className="flex items-center justify-between mb-8"><button onClick={() => setViewMode('module')} className="flex items-center gap-4 text-slate-400 hover:text-orange-500 transition-all font-black text-lg group"><ArrowLeft size={28} strokeWidth={3} className="group-hover:-translate-x-2 transition-transform" /><span>VOLVER A LA LECCIÓN</span></button>{moduleHighlights.length > 0 && (<button onClick={clearAllHighlights} className="flex items-center gap-2 px-6 py-3 bg-rose-600/10 text-rose-500 hover:bg-rose-600 hover:text-white border border-rose-600/30 rounded-2xl transition-all font-black text-xs uppercase tracking-widest"><XCircle size={18} /><span>Borrar Todo</span></button>)}</div>
-                 <div className="bg-[#444444] p-12 rounded-[2.5rem] border border-white/5 shadow-2xl"><h2 className="text-3xl font-black text-white mb-10 uppercase tracking-tight">MIS NOTAS</h2><div className="space-y-6">{moduleHighlights.length === 0 ? (<p className="text-slate-500 italic text-lg">Selecciona texto en la lección y usa el botón "Resaltar" para guardar fragmentos importantes.</p>) : (moduleHighlights.map((h, i) => (<div key={i} className="flex items-start justify-between p-7 bg-orange-600/10 border-l-8 border-orange-500 rounded-r-2xl group transition-all hover:bg-orange-600/20"><p className="text-lg font-bold text-slate-100 italic flex-1 pr-6">"{h}"</p><button onClick={() => removeHighlight(h)} className="p-2.5 text-slate-500 hover:text-rose-500 hover:bg-rose-500/10 rounded-xl transition-all"><Trash2 size={18} /></button></div>)))}</div></div>
+              <div className="space-y-6">
+                <h2 className="text-5xl font-black text-white">¡Examen Finalizado!</h2>
+                <div className="py-10">
+                   <div className="text-6xl font-black text-orange-500 mb-2">{quizState.score} / {shuffledQuiz.length}</div>
+                   <p className="text-slate-500 font-bold uppercase tracking-widest text-sm">Puntuación Final</p>
+                </div>
+                <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                  <button onClick={handleResetQuiz} className="px-12 py-4 bg-orange-600 text-white rounded-[2rem] font-black uppercase tracking-widest transition-all active:scale-95 shadow-xl shadow-orange-500/20">REPETIR EXAMEN</button>
+                  <button onClick={() => setViewMode('module')} className="px-12 py-4 bg-slate-800 text-white rounded-[2rem] font-black uppercase tracking-widest transition-all hover:bg-slate-700">Volver a la lección</button>
+                </div>
               </div>
             )}
           </div>
+        )}
+
+        {viewMode === 'glossary' && (
+          <div className="p-16 bg-[#444444] rounded-[4rem] border border-white/5 animate-fade-in shadow-2xl">
+             <div className="flex items-center gap-4 mb-12">
+               <BookOpen size={32} className="text-orange-500" />
+               <h2 className="text-4xl font-black text-white uppercase tracking-tight">GLOSARIO TÉCNICO</h2>
+             </div>
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+               {course.glossary.map((g, i) => (
+                 <div key={i} className="p-8 bg-slate-900/50 rounded-3xl border border-white/5 hover:border-orange-500/50 transition-all group">
+                   <h4 className="text-xl font-black text-orange-500 mb-3 group-hover:translate-x-1 transition-transform">{g.term}</h4>
+                   <p className="text-slate-400 font-medium leading-relaxed">{g.definition}</p>
+                 </div>
+               ))}
+             </div>
+             <button onClick={() => setViewMode('module')} className="mt-12 block mx-auto text-slate-500 font-bold hover:text-white transition-colors">Volver a la lección</button>
+          </div>
+        )}
+        
+        {/* Marcador de final para scroll */}
+        <div ref={bottomRef} className="h-40 w-full clear-both" />
+      </div>
+
+      {/* Columna Lateral para Flechas de Navegación - Sincronizadas con el Scroll */}
+      <div className="w-16 shrink-0 relative">
+        <div className="sticky top-1/2 -translate-y-1/2 flex flex-col gap-5 py-4 z-[100]">
+          <button 
+            onClick={scrollToTop} 
+            className="w-14 h-14 bg-slate-800 border border-white/10 rounded-full flex items-center justify-center text-orange-500 hover:bg-orange-600 hover:text-white transition-all shadow-xl active:scale-90 group"
+            title="Ir al inicio"
+          >
+            <ChevronUp size={28} className="group-hover:-translate-y-0.5 transition-transform" />
+          </button>
+          <button 
+            onClick={scrollToBottom} 
+            className="w-14 h-14 bg-slate-800 border border-white/10 rounded-full flex items-center justify-center text-orange-500 hover:bg-orange-600 hover:text-white transition-all shadow-xl active:scale-90 group"
+            title="Ir al final"
+          >
+            <ChevronDown size={28} className="group-hover:translate-y-0.5 transition-transform" />
+          </button>
         </div>
       </div>
     </div>

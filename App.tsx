@@ -35,7 +35,7 @@ const TRANSLATIONS: Record<string, TranslationDictionary> = {
     ebook: { generate: 'Descargar Ebook', generatingIndex: 'Planificando...', generatingContent: 'Escribiendo...', preparingFile: 'Finalizando...', success: '¡Éxito!', warning: 'Generación extensa.' },
     sidebar: { explorer: 'EXPLORADOR', newStrategy: 'NUEVA', loading: 'Cargando...', courseContent: 'CONTENIDO', myStrategies: 'MIS ESTRATEGIAS', history: 'HISTORIAL', emptyHistory: 'Vacío' },
     settings: { title: 'Ajustes', secureData: 'Secure', secureDesc: 'Historial local.', backup: 'Copia', backupBtn: 'Exportar', backupDesc: 'Copia de seguridad.' },
-    loading: { analyzing: 'Analizando...', designing: 'Diseñando...', building: 'Construyendo...', translating: 'Traduciendo...' }
+    loading: { analyzing: 'Analizando...', designing: 'Designing...', building: 'Construyendo...', translating: 'Traduciendo...' }
   }
 };
 
@@ -69,6 +69,7 @@ export default function App() {
   const isRestoringRef = useRef(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const fileImportRef = useRef<HTMLInputElement>(null);
+  const mainRef = useRef<HTMLElement>(null);
   const t = TRANSLATIONS[language];
 
   useEffect(() => {
@@ -214,7 +215,14 @@ export default function App() {
     } catch (e) { alert('Error'); } finally { setLoading(false); }
   };
 
-  // Navigation conditions
+  const scrollToTop = () => {
+    if (mainRef.current) mainRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const scrollToBottom = () => {
+    if (mainRef.current) mainRef.current.scrollTo({ top: mainRef.current.scrollHeight, behavior: 'smooth' });
+  };
+
   const canGoToPillars = pillars.length > 0;
   const canGoToVariations = selectedPillar !== null && variations.length > 0;
   const canGoToCourse = course !== null;
@@ -242,59 +250,24 @@ export default function App() {
           </div>
         </div>
 
-        {/* Navigation Links Centrales */}
         <nav className="hidden lg:flex items-center gap-8">
-          <button 
-            onClick={() => setStep('INPUT')}
-            className={`text-[11px] font-black uppercase tracking-[0.2em] transition-all hover:text-orange-500 ${step === 'INPUT' ? 'text-orange-500 border-b-2 border-orange-500 pb-1' : 'text-slate-400'}`}
-          >
-            {t.steps.input}
-          </button>
-          <button 
-            disabled={!canGoToPillars}
-            onClick={() => setStep('PILLARS')}
-            className={`text-[11px] font-black uppercase tracking-[0.2em] transition-all ${canGoToPillars ? 'hover:text-orange-500 cursor-pointer' : 'opacity-30 cursor-not-allowed'} ${step === 'PILLARS' ? 'text-orange-500 border-b-2 border-orange-500 pb-1' : 'text-slate-400'}`}
-          >
-            {t.steps.pillars}
-          </button>
-          <button 
-            disabled={!canGoToVariations}
-            onClick={() => setStep('VARIATIONS')}
-            className={`text-[11px] font-black uppercase tracking-[0.2em] transition-all ${canGoToVariations ? 'hover:text-orange-500 cursor-pointer' : 'opacity-30 cursor-not-allowed'} ${step === 'VARIATIONS' ? 'text-orange-500 border-b-2 border-orange-500 pb-1' : 'text-slate-400'}`}
-          >
-            {t.steps.variations}
-          </button>
-          <button 
-            disabled={!canGoToCourse}
-            onClick={() => setStep('COURSE')}
-            className={`text-[11px] font-black uppercase tracking-[0.2em] transition-all ${canGoToCourse ? 'hover:text-orange-500 cursor-pointer' : 'opacity-30 cursor-not-allowed'} ${step === 'COURSE' ? 'text-orange-500 border-b-2 border-orange-500 pb-1' : 'text-slate-400'}`}
-          >
-            {t.steps.course}
-          </button>
+          <button onClick={() => setStep('INPUT')} className={`text-[11px] font-black uppercase tracking-[0.2em] transition-all hover:text-orange-500 ${step === 'INPUT' ? 'text-orange-500 border-b-2 border-orange-500 pb-1' : 'text-slate-400'}`}>{t.steps.input}</button>
+          <button disabled={!canGoToPillars} onClick={() => setStep('PILLARS')} className={`text-[11px] font-black uppercase tracking-[0.2em] transition-all ${canGoToPillars ? 'hover:text-orange-500 cursor-pointer' : 'opacity-30 cursor-not-allowed'} ${step === 'PILLARS' ? 'text-orange-500 border-b-2 border-orange-500 pb-1' : 'text-slate-400'}`}>{t.steps.pillars}</button>
+          <button disabled={!canGoToVariations} onClick={() => setStep('VARIATIONS')} className={`text-[11px] font-black uppercase tracking-[0.2em] transition-all ${canGoToVariations ? 'hover:text-orange-500 cursor-pointer' : 'opacity-30 cursor-not-allowed'} ${step === 'VARIATIONS' ? 'text-orange-500 border-b-2 border-orange-500 pb-1' : 'text-slate-400'}`}>{t.steps.variations}</button>
+          <button disabled={!canGoToCourse} onClick={() => setStep('COURSE')} className={`text-[11px] font-black uppercase tracking-[0.2em] transition-all ${canGoToCourse ? 'hover:text-orange-500 cursor-pointer' : 'opacity-30 cursor-not-allowed'} ${step === 'COURSE' ? 'text-orange-500 border-b-2 border-orange-500 pb-1' : 'text-slate-400'}`}>{t.steps.course}</button>
         </nav>
 
         <div className="flex items-center gap-8 relative" ref={dropdownRef}>
-          <button onClick={saveCurrentSession} className="w-14 h-14 bg-emerald-600/10 hover:bg-emerald-600/20 text-emerald-500 rounded-xl flex items-center justify-center transition-all active:scale-90 shadow-lg" title="Guardar Progreso">
-            <Save size={24} />
-          </button>
-
-          <button onClick={() => setIsHistoryOpen(!isHistoryOpen)} className={`w-14 h-14 rounded-xl flex items-center justify-center transition-all ${isHistoryOpen ? 'bg-orange-600 shadow-orange-500/40' : 'bg-orange-600/10 hover:bg-orange-600/20'} text-white active:scale-90 shadow-lg`}>
-            <Folder size={24} className={isHistoryOpen ? 'text-white' : 'text-orange-500'} />
-          </button>
+          <button onClick={saveCurrentSession} className="w-14 h-14 bg-emerald-600/10 hover:bg-emerald-600/20 text-emerald-500 rounded-xl flex items-center justify-center transition-all active:scale-90 shadow-lg" title="Guardar Progreso"><Save size={24} /></button>
+          <button onClick={() => setIsHistoryOpen(!isHistoryOpen)} className={`w-14 h-14 rounded-xl flex items-center justify-center transition-all ${isHistoryOpen ? 'bg-orange-600 shadow-orange-500/40' : 'bg-orange-600/10 hover:bg-orange-600/20'} text-white active:scale-90 shadow-lg`}><Folder size={24} className={isHistoryOpen ? 'text-white' : 'text-orange-500'} /></button>
           
           {isHistoryOpen && (
             <div className="absolute top-full mt-4 right-0 w-[420px] bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl z-[200] overflow-hidden animate-fade-in-up">
               <div className="p-6 border-b border-slate-800 bg-slate-950/50 space-y-4">
                 <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Gestión de Archivos</span>
                 <div className="grid grid-cols-2 gap-3">
-                  <button onClick={handleExportHistory} className="flex items-center justify-center gap-2 py-3 bg-slate-800 hover:bg-slate-700 text-white text-[11px] font-black uppercase rounded-xl border border-white/5 transition-colors">
-                    <Download size={16} className="text-orange-500" />
-                    <span>Exportar</span>
-                  </button>
-                  <button onClick={() => fileImportRef.current?.click()} className="flex items-center justify-center gap-2 py-3 bg-slate-800 hover:bg-slate-700 text-white text-[11px] font-black uppercase rounded-xl border border-white/5 transition-colors">
-                    <Upload size={16} className="text-orange-500" />
-                    <span>Cargar JSON</span>
-                  </button>
+                  <button onClick={handleExportHistory} className="flex items-center justify-center gap-2 py-3 bg-slate-800 hover:bg-slate-700 text-white text-[11px] font-black uppercase rounded-xl border border-white/5 transition-colors"><Download size={16} className="text-orange-500" /><span>Exportar</span></button>
+                  <button onClick={() => fileImportRef.current?.click()} className="flex items-center justify-center gap-2 py-3 bg-slate-800 hover:bg-slate-700 text-white text-[11px] font-black uppercase rounded-xl border border-white/5 transition-colors"><Upload size={16} className="text-orange-500" /><span>Cargar JSON</span></button>
                 </div>
               </div>
               <div className="max-h-[350px] overflow-y-auto custom-scrollbar">
@@ -323,7 +296,7 @@ export default function App() {
       </header>
 
       <div className={`flex-1 flex overflow-hidden transition-all ${isFullscreen ? 'p-0' : 'pb-6'}`}>
-        <main className={`flex-1 overflow-y-auto pt-10 ${darkMode ? 'bg-[#0a0f1d]' : 'bg-slate-50'} transition-all ${isFullscreen ? 'rounded-none' : 'rounded-b-[2.5rem] mx-6 shadow-inner border-x border-b border-white/5'}`}>
+        <main ref={mainRef} className={`flex-1 overflow-y-auto pt-10 ${darkMode ? 'bg-[#0a0f1d]' : 'bg-slate-50'} transition-all ${isFullscreen ? 'rounded-none' : 'rounded-b-[2.5rem] mx-6 shadow-inner border-x border-b border-white/5 relative'}`}>
           <div className="w-full h-full pb-20">
             {loading ? <LoadingScreen message={loadingMessage} /> : (
               <div className="w-full h-full animate-fade-in-up">
@@ -331,11 +304,13 @@ export default function App() {
                 {step === 'PILLARS' && <div className="max-w-5xl mx-auto"><PillarSelection topic={topic} pillars={pillars} relatedTopics={relatedTopics} onSelect={handlePillarSelect} onSelectTopic={handleTopicSubmit} language={language} t={t} searchTerm={searchTerm} /></div>}
                 {step === 'VARIATIONS' && selectedPillar && <div className="max-w-5xl mx-auto"><VariationSelection pillar={selectedPillar} variations={variations} onSelect={handleVariationSelect} onBack={() => setStep('PILLARS')} t={t} searchTerm={searchTerm} variationScores={variationScores} /></div>}
                 {step === 'COURSE' && course && (
+                  /* Fix: Remove onGenerateEbook prop because it is not defined in CourseViewProps */
                   <CourseView 
                     course={course} activeModuleId={activeModuleId || ""} setActiveModuleId={setActiveModuleId} pillarTitle={selectedPillar?.title || ''} 
                     t={t} completedModuleIds={completedModuleIds} onToggleModule={(id) => setCompletedModuleIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])}
-                    onUpdateHighlights={(mid, h) => setUserHighlights(prev => ({...prev, [mid]: h}))} language={language} onGenerateEbook={() => {}} 
+                    onUpdateHighlights={(mid, h) => setUserHighlights(prev => ({...prev, [mid]: h}))} language={language} 
                     userHighlights={userHighlights} onQuizComplete={(score, total) => { if(selectedVariation) setVariationScores(prev => ({...prev, [selectedVariation.id]: {score, total}})) }}
+                    onScrollToTop={scrollToTop} onScrollToBottom={scrollToBottom}
                   />
                 )}
               </div>

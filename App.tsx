@@ -324,12 +324,12 @@ export default function App() {
 
       <div className={`flex-1 flex overflow-hidden transition-all ${isFullscreen ? 'p-0' : 'pb-6'}`}>
         <main className={`flex-1 overflow-y-auto pt-10 ${darkMode ? 'bg-[#0a0f1d]' : 'bg-slate-50'} transition-all ${isFullscreen ? 'rounded-none' : 'rounded-b-[2.5rem] mx-6 shadow-inner border-x border-b border-white/5'}`}>
-          <div className="max-w-5xl mx-auto pb-20">
+          <div className="w-full h-full pb-20">
             {loading ? <LoadingScreen message={loadingMessage} /> : (
               <div className="w-full h-full animate-fade-in-up">
-                {step === 'INPUT' && <TopicInput onSubmit={handleTopicSubmit} t={t} />}
-                {step === 'PILLARS' && <PillarSelection topic={topic} pillars={pillars} relatedTopics={relatedTopics} onSelect={handlePillarSelect} onSelectTopic={handleTopicSubmit} language={language} t={t} searchTerm={searchTerm} />}
-                {step === 'VARIATIONS' && selectedPillar && <VariationSelection pillar={selectedPillar} variations={variations} onSelect={handleVariationSelect} onBack={() => setStep('PILLARS')} t={t} searchTerm={searchTerm} variationScores={variationScores} />}
+                {step === 'INPUT' && <div className="max-w-5xl mx-auto"><TopicInput onSubmit={handleTopicSubmit} t={t} /></div>}
+                {step === 'PILLARS' && <div className="max-w-5xl mx-auto"><PillarSelection topic={topic} pillars={pillars} relatedTopics={relatedTopics} onSelect={handlePillarSelect} onSelectTopic={handleTopicSubmit} language={language} t={t} searchTerm={searchTerm} /></div>}
+                {step === 'VARIATIONS' && selectedPillar && <div className="max-w-5xl mx-auto"><VariationSelection pillar={selectedPillar} variations={variations} onSelect={handleVariationSelect} onBack={() => setStep('PILLARS')} t={t} searchTerm={searchTerm} variationScores={variationScores} /></div>}
                 {step === 'COURSE' && course && (
                   <CourseView 
                     course={course} activeModuleId={activeModuleId || ""} setActiveModuleId={setActiveModuleId} pillarTitle={selectedPillar?.title || ''} 

@@ -176,7 +176,7 @@ export const CourseView: React.FC<CourseViewProps> = ({
   if (!activeModule) return null;
 
   return (
-    <div className="flex w-full gap-6 animate-fade-in pb-20 relative">
+    <div className="flex w-full px-10 gap-10 animate-fade-in pb-20 relative">
       {/* Marcador de inicio para scroll */}
       <div ref={topRef} className="absolute top-0 h-0 w-0" />
 
@@ -198,8 +198,8 @@ export const CourseView: React.FC<CourseViewProps> = ({
         </div>
       </aside>
 
-      {/* Área de Lectura Central */}
-      <div className="flex-1 min-w-0">
+      {/* Área de Lectura Central - DESPLAZADA A LA DERECHA */}
+      <div className="flex-1 min-w-0 max-w-4xl ml-auto pr-16">
         <div className="mb-12">
           <p className="text-[10px] font-black text-orange-500 uppercase tracking-[0.3em] mb-2">{pillarTitle}</p>
           <h2 className="text-4xl font-black text-white leading-none tracking-tighter">{course.title}</h2>
@@ -327,24 +327,22 @@ export const CourseView: React.FC<CourseViewProps> = ({
         <div ref={bottomRef} className="h-40 w-full clear-both" />
       </div>
 
-      {/* Columna Lateral para Flechas de Navegación - Sincronizadas con el Scroll */}
-      <div className="w-16 shrink-0 relative">
-        <div className="sticky top-1/2 -translate-y-1/2 flex flex-col gap-5 py-4 z-[100]">
-          <button 
-            onClick={scrollToTop} 
-            className="w-14 h-14 bg-slate-800 border border-white/10 rounded-full flex items-center justify-center text-orange-500 hover:bg-orange-600 hover:text-white transition-all shadow-xl active:scale-90 group"
-            title="Ir al inicio"
-          >
-            <ChevronUp size={28} className="group-hover:-translate-y-0.5 transition-transform" />
-          </button>
-          <button 
-            onClick={scrollToBottom} 
-            className="w-14 h-14 bg-slate-800 border border-white/10 rounded-full flex items-center justify-center text-orange-500 hover:bg-orange-600 hover:text-white transition-all shadow-xl active:scale-90 group"
-            title="Ir al final"
-          >
-            <ChevronDown size={28} className="group-hover:translate-y-0.5 transition-transform" />
-          </button>
-        </div>
+      {/* Flechas de Navegación - POSICIONADAS A 10PX DEL SCROLL */}
+      <div className="fixed right-[10px] top-1/2 -translate-y-1/2 flex flex-col gap-5 py-4 z-[100] transition-all">
+        <button 
+          onClick={scrollToTop} 
+          className="w-14 h-14 bg-slate-800 border border-white/10 rounded-full flex items-center justify-center text-orange-500 hover:bg-orange-600 hover:text-white transition-all shadow-xl active:scale-90 group"
+          title="Ir al inicio"
+        >
+          <ChevronUp size={28} className="group-hover:-translate-y-0.5 transition-transform" />
+        </button>
+        <button 
+          onClick={scrollToBottom} 
+          className="w-14 h-14 bg-slate-800 border border-white/10 rounded-full flex items-center justify-center text-orange-500 hover:bg-orange-600 hover:text-white transition-all shadow-xl active:scale-90 group"
+          title="Ir al final"
+        >
+          <ChevronDown size={28} className="group-hover:translate-y-0.5 transition-transform" />
+        </button>
       </div>
     </div>
   );

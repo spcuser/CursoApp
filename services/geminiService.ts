@@ -118,8 +118,16 @@ export const generateModuleImage = async (description: string): Promise<string> 
     if (part?.inlineData) {
       return `data:image/png;base64,${part.inlineData.data}`;
     }
-  } catch (e) {
-    console.error("Image gen error", e);
+  } catch (e: any) {
+    // Silently handle quota errors to prevent UI breaking
+    const errorMsg = e?.message || "";
+    const status = e?.status || e?.code;
+    
+    if (errorMsg.includes('429') || errorMsg.includes('RESOURCE_EXHAUSTED') || status === 429 || status === 'RESOURCE_EXHAUSTED') {
+      console.warn("Generation quota exceeded. Image will not be displayed.");
+    } else {
+      console.error("Image gen error", e);
+    }
   }
   return '';
 };
@@ -182,9 +190,9 @@ export const generateCourse = async (variationTitle: string, variationDescriptio
     model: 'gemini-3-pro-preview',
     contents: prompt,
     config: { 
+      //thinkingConfig: { thinkingBudget: 4000 }, // Thinking is not supported for gemini-3-pro-preview
       responseMimeType: 'application/json', 
       responseSchema: courseSchema,
-      thinkingConfig: { thinkingBudget: 4000 }
     }
   });
   

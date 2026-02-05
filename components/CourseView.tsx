@@ -143,21 +143,34 @@ export const CourseView: React.FC<CourseViewProps> = ({
   if (!activeModule) return null;
 
   return (
-    <div className="flex w-full px-10 animate-fade-in pb-20 relative">
-      {/* ÍNDICE IZQUIERDA */}
-      <aside className="w-72 space-y-4 shrink-0 sticky top-0 h-fit max-h-[calc(100vh-160px)] overflow-y-auto custom-scrollbar pr-4 border-r border-white/5">
+    /* Aumentamos el padding izquierdo global (pl-[60px]) para desplazar todo el contenido 20px más a la derecha */
+    <div className="flex w-full pl-[60px] pr-10 animate-fade-in pb-20 relative">
+      
+      {/* ÍNDICE IZQUIERDA - Añadido px-6 para evitar el recorte del botón activo al escalar */}
+      <aside className="w-80 space-y-4 shrink-0 sticky top-0 h-fit max-h-[calc(100vh-160px)] overflow-y-auto custom-scrollbar px-6 border-r border-white/5">
         <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] mb-6 pl-2">ÍNDICE</h3>
         <div className="space-y-3">
-          {course.modules.map((m, i) => (
-            <button key={m.id} onClick={() => setActiveModuleId(m.id)} className={`w-full flex items-center gap-4 p-5 rounded-2xl text-left transition-all ${activeModuleId === m.id ? 'bg-white text-slate-900 shadow-2xl scale-105' : 'bg-[#444444] text-slate-400 border border-white/5 hover:border-orange-500'}`}>
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-black ${activeModuleId === m.id ? 'bg-orange-600 text-white' : completedModuleIds.includes(m.id) ? 'bg-emerald-500 text-white' : 'bg-slate-800'}`}>{completedModuleIds.includes(m.id) ? '✓' : i + 1}</div>
-              <span className="text-sm font-bold truncate">{cleanMarkdown(m.title)}</span>
-            </button>
-          ))}
+          {course.modules.map((m, i) => {
+            const isActive = activeModuleId === m.id;
+            const isDone = completedModuleIds.includes(m.id);
+            return (
+              <button 
+                key={m.id} 
+                onClick={() => setActiveModuleId(m.id)} 
+                className={`w-full flex items-center gap-4 p-5 rounded-2xl text-left transition-all duration-300 ${isActive ? 'bg-white text-slate-900 shadow-2xl scale-105 z-10' : 'bg-[#444444] text-slate-400 border border-white/5 hover:border-orange-500'}`}
+              >
+                {/* ICONO PÍLDORA VERTICAL */}
+                <div className={`w-6 h-10 rounded-full flex items-center justify-center shrink-0 ${isActive ? 'bg-orange-600 text-white shadow-inner' : isDone ? 'bg-emerald-500 text-white' : 'bg-slate-800 text-slate-500'}`}>
+                  {isDone || isActive ? <CheckCircle2 size={16} strokeWidth={3} /> : <span className="text-[10px] font-black">{i + 1}</span>}
+                </div>
+                <span className={`text-sm font-bold truncate ${isActive ? 'text-slate-900' : 'text-slate-400'}`}>{cleanMarkdown(m.title)}</span>
+              </button>
+            );
+          })}
         </div>
         <div className="pt-8 space-y-3">
-          <button onClick={() => setViewMode('quiz')} className={`w-full flex items-center gap-3 p-4 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${viewMode === 'quiz' ? 'bg-orange-600 text-white' : 'bg-slate-800 text-slate-500 hover:text-white'}`}><HelpCircle size={18} /><span>EXAMEN</span></button>
-          <button onClick={() => setViewMode('glossary')} className={`w-full flex items-center gap-3 p-4 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${viewMode === 'glossary' ? 'bg-orange-600 text-white' : 'bg-slate-800 text-slate-500 hover:text-white'}`}><BookOpen size={18} /><span>GLOSARIO</span></button>
+          <button onClick={() => setViewMode('quiz')} className={`w-full flex items-center gap-3 p-4 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${viewMode === 'quiz' ? 'bg-orange-600 text-white shadow-lg' : 'bg-slate-800 text-slate-500 hover:text-white'}`}><HelpCircle size={18} /><span>EXAMEN</span></button>
+          <button onClick={() => setViewMode('glossary')} className={`w-full flex items-center gap-3 p-4 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${viewMode === 'glossary' ? 'bg-orange-600 text-white shadow-lg' : 'bg-slate-800 text-slate-500 hover:text-white'}`}><BookOpen size={18} /><span>GLOSARIO</span></button>
         </div>
       </aside>
 
@@ -189,7 +202,7 @@ export const CourseView: React.FC<CourseViewProps> = ({
                         <Highlighter size={14} className="opacity-0 group-hover/card:opacity-50 transition-opacity" />
                      </div>
                      <p className="text-2xl font-black leading-tight tracking-tight">
-                        {renderContentWithHighlights(cleanMarkdown(activeModule.keyTakeaway), 'bg-blue-600')}
+                        {renderContentWithHighlights(cleanMarkdown(activeModule.keyTakeaway), 'bg-[#254bdb]')}
                      </p>
                    </div>
                 </div>

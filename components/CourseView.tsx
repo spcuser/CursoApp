@@ -25,14 +25,18 @@ const cleanMarkdown = (text: string = '') => {
   return text.toString().replace(/[#*]/g, '').trim();
 };
 
-// Función para barajar profundamente un examen: preguntas y sus opciones
+/**
+ * Baraja profundamente un examen:
+ * 1. Baraja las preguntas.
+ * 2. Baraja las opciones de cada pregunta y recalcula el correctAnswerIndex.
+ */
 const randomizeQuiz = (questions: QuizQuestion[]): QuizQuestion[] => {
   if (!questions || questions.length === 0) return [];
   
-  // 1. Barajamos las preguntas
+  // Barajar preguntas
   const shuffledQuestions = [...questions].sort(() => Math.random() - 0.5);
   
-  // 2. Para cada pregunta, barajamos sus opciones manteniendo la referencia de la correcta
+  // Barajar opciones dentro de cada pregunta
   return shuffledQuestions.map(q => {
     const correctText = q.options[q.correctAnswerIndex];
     const shuffledOptions = [...q.options].sort(() => Math.random() - 0.5);
@@ -70,9 +74,10 @@ export const CourseView: React.FC<CourseViewProps> = ({
   const activeModule = course.modules.find(m => m.id === activeModuleId) || course.modules[0];
   const isCompleted = completedModuleIds.includes(activeModule?.id || '');
   
+  // Ref para detectar el momento exacto de finalización del curso
   const prevCompletedCount = useRef(completedModuleIds.length);
 
-  // Efecto para salto automático al examen (solo cuando se completa el último módulo pendiente)
+  // Auto-salto al examen solo una vez al completar la última lección
   useEffect(() => {
     const totalModules = course.modules.length;
     const currentCount = completedModuleIds.length;
@@ -90,7 +95,7 @@ export const CourseView: React.FC<CourseViewProps> = ({
       generateModuleImage(activeModule.imageDescription).then(setModuleImage).catch(() => setModuleImage(''));
     }
     
-    // Aleatorizar examen al cambiar de módulo
+    // Generar nueva versión aleatoria del examen para esta lección
     if (activeModule?.quiz) {
       setShuffledQuiz(randomizeQuiz(activeModule.quiz));
     }
@@ -136,8 +141,8 @@ export const CourseView: React.FC<CourseViewProps> = ({
         const element = document.getElementById(lastAnchor);
         if (element) {
           element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          element.classList.add('bg-orange-500/20');
-          setTimeout(() => element.classList.remove('bg-orange-500/20'), 2000);
+          element.classList.add('bg-orange-500/30', 'rounded-lg');
+          setTimeout(() => element.classList.remove('bg-orange-500/30', 'rounded-lg'), 2500);
         }
       }, 100);
     }
@@ -145,10 +150,12 @@ export const CourseView: React.FC<CourseViewProps> = ({
 
   const renderContentWithAllInteractions = (text: string, blockId: string, highlightClass: string = 'bg-orange-500') => {
     const highlights = userHighlights[activeModule.id] || [];
+    // Ordenamos términos por longitud para evitar que "SEO" rompa "SEO Estratégico"
     const glossaryTerms = [...course.glossary].sort((a, b) => b.term.length - a.term.length);
     
     let parts: (string | React.ReactNode)[] = [text];
 
+    // 1. Inyectar Resaltados de Usuario
     highlights.forEach(h => {
       const newParts: (string | React.ReactNode)[] = [];
       parts.forEach(p => {
@@ -162,6 +169,7 @@ export const CourseView: React.FC<CourseViewProps> = ({
       parts = newParts;
     });
 
+    // 2. Inyectar Enlaces al Glosario
     glossaryTerms.forEach(termObj => {
       const term = termObj.term;
       const newParts: (string | React.ReactNode)[] = [];
@@ -203,7 +211,7 @@ export const CourseView: React.FC<CourseViewProps> = ({
               id={anchorId}
               key={partKey}
               onClick={(e) => { e.stopPropagation(); goToGlossaryTerm(item.content, anchorId); }}
-              className="cursor-pointer border-b border-dotted border-orange-500 text-orange-400 hover:text-orange-300 hover:bg-orange-500/10 transition-colors font-bold"
+              className="cursor-pointer border-b border-dotted border-orange-500 text-orange-400 hover:text-orange-300 hover:bg-orange-500/10 transition-all font-bold px-0.5"
               title="Ver definición en glosario"
             >
               {item.content}
@@ -379,8 +387,8 @@ export const CourseView: React.FC<CourseViewProps> = ({
                          {lastAnchor && (
                             <button 
                               onClick={returnToText}
-                              className="p-2 bg-white/5 hover:bg-orange-500 text-slate-400 hover:text-white rounded-lg transition-all"
-                              title="Volver al texto"
+                              className="p-2 bg-white/5 hover:bg-orange-500 text-slate-400 hover:text-white rounded-lg transition-all animate-pulse"
+                              title="Volver al texto donde aparece"
                             >
                               <CornerUpLeft size={16} />
                             </button>

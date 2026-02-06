@@ -25,8 +25,25 @@ const cleanMarkdown = (text: string = '') => {
   return text.toString().replace(/[#*]/g, '').trim();
 };
 
-const shuffleArray = <T,>(array: T[]): T[] => {
-  return [...array].sort(() => Math.random() - 0.5);
+// Función para barajar profundamente un examen: preguntas y sus opciones
+const randomizeQuiz = (questions: QuizQuestion[]): QuizQuestion[] => {
+  if (!questions || questions.length === 0) return [];
+  
+  // 1. Barajamos las preguntas
+  const shuffledQuestions = [...questions].sort(() => Math.random() - 0.5);
+  
+  // 2. Para cada pregunta, barajamos sus opciones manteniendo la referencia de la correcta
+  return shuffledQuestions.map(q => {
+    const correctText = q.options[q.correctAnswerIndex];
+    const shuffledOptions = [...q.options].sort(() => Math.random() - 0.5);
+    const newCorrectIndex = shuffledOptions.indexOf(correctText);
+    
+    return {
+      ...q,
+      options: shuffledOptions,
+      correctAnswerIndex: newCorrectIndex
+    };
+  });
 };
 
 export const CourseView: React.FC<CourseViewProps> = ({ 
@@ -55,12 +72,15 @@ export const CourseView: React.FC<CourseViewProps> = ({
   
   const prevCompletedCount = useRef(completedModuleIds.length);
 
+  // Efecto para salto automático al examen (solo cuando se completa el último módulo pendiente)
   useEffect(() => {
     const totalModules = course.modules.length;
     const currentCount = completedModuleIds.length;
+    
     if (totalModules > 0 && currentCount === totalModules && prevCompletedCount.current < totalModules) {
       setViewMode('quiz');
     }
+    
     prevCompletedCount.current = currentCount;
   }, [completedModuleIds, course.modules]);
 
@@ -69,9 +89,12 @@ export const CourseView: React.FC<CourseViewProps> = ({
       setModuleImage(''); 
       generateModuleImage(activeModule.imageDescription).then(setModuleImage).catch(() => setModuleImage(''));
     }
+    
+    // Aleatorizar examen al cambiar de módulo
     if (activeModule?.quiz) {
-      setShuffledQuiz(shuffleArray(activeModule.quiz));
+      setShuffledQuiz(randomizeQuiz(activeModule.quiz));
     }
+    
     setQuizState({currentIdx: 0, score: 0, finished: false, selectedIdx: null, showFeedback: false});
   }, [activeModuleId]);
 
@@ -93,7 +116,6 @@ export const CourseView: React.FC<CourseViewProps> = ({
     onUpdateHighlights(activeModule.id, newHighlights);
   };
 
-  // Función para navegar al glosario y hacer scroll al término
   const goToGlossaryTerm = (term: string, anchorId: string) => {
     setLastAnchor(anchorId);
     setViewMode('glossary');
@@ -107,7 +129,6 @@ export const CourseView: React.FC<CourseViewProps> = ({
     }, 100);
   };
 
-  // Función para volver del glosario al punto exacto del texto
   const returnToText = () => {
     setViewMode('module');
     if (lastAnchor) {
@@ -128,7 +149,6 @@ export const CourseView: React.FC<CourseViewProps> = ({
     
     let parts: (string | React.ReactNode)[] = [text];
 
-    // 1. Procesar Resaltados
     highlights.forEach(h => {
       const newParts: (string | React.ReactNode)[] = [];
       parts.forEach(p => {
@@ -142,17 +162,13 @@ export const CourseView: React.FC<CourseViewProps> = ({
       parts = newParts;
     });
 
-    // 2. Procesar Términos del Glosario (solo en partes que aún son strings)
     glossaryTerms.forEach(termObj => {
       const term = termObj.term;
       const newParts: (string | React.ReactNode)[] = [];
       parts.forEach(p => {
         if (typeof p !== 'string') { newParts.push(p); return; }
-        
-        // Regex para encontrar el término exacto con límites de palabra (\b)
         const regex = new RegExp(`\\b(${term})\\b`, 'gi');
         const split = p.split(regex);
-        
         split.forEach((s, i) => {
           if (regex.test(s)) {
             newParts.push({ type: 'glossary', content: s });
@@ -217,7 +233,9 @@ export const CourseView: React.FC<CourseViewProps> = ({
   };
 
   const handleResetQuiz = () => {
-    if (activeModule?.quiz) setShuffledQuiz(shuffleArray(activeModule.quiz));
+    if (activeModule?.quiz) {
+      setShuffledQuiz(randomizeQuiz(activeModule.quiz));
+    }
     setQuizState({currentIdx: 0, score: 0, finished: false, selectedIdx: null, showFeedback: false});
   };
 
@@ -335,7 +353,7 @@ export const CourseView: React.FC<CourseViewProps> = ({
                     <h2 className="text-5xl font-black text-white">¡Examen Finalizado!</h2>
                     <div className="py-10"><div className="text-6xl font-black text-orange-500 mb-2">{quizState.score} / {shuffledQuiz.length}</div><p className="text-slate-500 font-bold uppercase tracking-widest text-sm">Puntuación Final</p></div>
                     <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                      <button onClick={handleResetQuiz} className="px-12 py-4 bg-orange-600 text-white rounded-[2rem] font-black uppercase tracking-widest transition-all active:scale-95 shadow-xl shadow-orange-500/20">REPETIR EXAMEN</button>
+                      <button onClick={handleResetQuiz} className="px-12 py-4 bg-orange-600 text-white rounded-[2rem] font-black uppercase tracking-widest transition-all active:scale-95 shadow-xl shadow-orange-500/20">REPETIR EXAMEN (BARAJAR)</button>
                       <button onClick={() => setViewMode('module')} className="px-12 py-4 bg-slate-800 text-white rounded-[2rem] font-black uppercase tracking-widest transition-all hover:bg-slate-700">Volver a la lección</button>
                     </div>
                   </div>

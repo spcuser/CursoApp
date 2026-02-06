@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Course, TranslationDictionary, CourseModule, QuizQuestion } from '../types';
-import { Book, Star, Trophy, CheckCircle2, ChevronUp, ChevronDown, Highlighter, HelpCircle, BookOpen, Image as ImageIcon, ArrowRight } from 'lucide-react';
+import { Book, Star, Trophy, CheckCircle2, ChevronUp, ChevronDown, Highlighter, HelpCircle, BookOpen, Image as ImageIcon, ArrowRight, CornerUpLeft } from 'lucide-react';
 import { generateModuleImage } from '../services/geminiService';
 
 interface CourseViewProps {
@@ -35,6 +35,7 @@ export const CourseView: React.FC<CourseViewProps> = ({
   const [viewMode, setViewMode] = useState<'module' | 'quiz' | 'glossary'>('module');
   const [moduleImage, setModuleImage] = useState<string>('');
   const [shuffledQuiz, setShuffledQuiz] = useState<QuizQuestion[]>([]);
+  const [lastAnchor, setLastAnchor] = useState<string | null>(null);
   const [quizState, setQuizState] = useState<{
     currentIdx: number, 
     score: number, 
@@ -51,17 +52,27 @@ export const CourseView: React.FC<CourseViewProps> = ({
   
   const activeModule = course.modules.find(m => m.id === activeModuleId) || course.modules[0];
   const isCompleted = completedModuleIds.includes(activeModule?.id || '');
+  
+  const prevCompletedCount = useRef(completedModuleIds.length);
+
+  useEffect(() => {
+    const totalModules = course.modules.length;
+    const currentCount = completedModuleIds.length;
+    if (totalModules > 0 && currentCount === totalModules && prevCompletedCount.current < totalModules) {
+      setViewMode('quiz');
+    }
+    prevCompletedCount.current = currentCount;
+  }, [completedModuleIds, course.modules]);
 
   useEffect(() => {
     if (activeModule?.imageDescription) {
-      setModuleImage(''); // Reset while loading
+      setModuleImage(''); 
       generateModuleImage(activeModule.imageDescription).then(setModuleImage).catch(() => setModuleImage(''));
     }
     if (activeModule?.quiz) {
       setShuffledQuiz(shuffleArray(activeModule.quiz));
     }
     setQuizState({currentIdx: 0, score: 0, finished: false, selectedIdx: null, showFeedback: false});
-    setViewMode('module');
   }, [activeModuleId]);
 
   const handleHighlight = () => {
@@ -82,11 +93,42 @@ export const CourseView: React.FC<CourseViewProps> = ({
     onUpdateHighlights(activeModule.id, newHighlights);
   };
 
-  const renderContentWithHighlights = (text: string, highlightClass: string = 'bg-orange-500') => {
+  // Función para navegar al glosario y hacer scroll al término
+  const goToGlossaryTerm = (term: string, anchorId: string) => {
+    setLastAnchor(anchorId);
+    setViewMode('glossary');
+    setTimeout(() => {
+      const element = document.getElementById(`glossary-${term.toLowerCase().replace(/\s+/g, '-')}`);
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        element.classList.add('ring-2', 'ring-orange-500', 'ring-offset-4', 'ring-offset-slate-900');
+        setTimeout(() => element.classList.remove('ring-2', 'ring-orange-500', 'ring-offset-4', 'ring-offset-slate-900'), 2000);
+      }
+    }, 100);
+  };
+
+  // Función para volver del glosario al punto exacto del texto
+  const returnToText = () => {
+    setViewMode('module');
+    if (lastAnchor) {
+      setTimeout(() => {
+        const element = document.getElementById(lastAnchor);
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          element.classList.add('bg-orange-500/20');
+          setTimeout(() => element.classList.remove('bg-orange-500/20'), 2000);
+        }
+      }, 100);
+    }
+  };
+
+  const renderContentWithAllInteractions = (text: string, blockId: string, highlightClass: string = 'bg-orange-500') => {
     const highlights = userHighlights[activeModule.id] || [];
-    if (highlights.length === 0) return text;
-    let parts: (string | React.ReactNode)[] = [text];
+    const glossaryTerms = [...course.glossary].sort((a, b) => b.term.length - a.term.length);
     
+    let parts: (string | React.ReactNode)[] = [text];
+
+    // 1. Procesar Resaltados
     highlights.forEach(h => {
       const newParts: (string | React.ReactNode)[] = [];
       parts.forEach(p => {
@@ -94,25 +136,64 @@ export const CourseView: React.FC<CourseViewProps> = ({
         const split = p.split(h);
         split.forEach((s, i) => {
           newParts.push(s);
-          if (i < split.length - 1) newParts.push(`__MARK__${h}__MARK__`);
+          if (i < split.length - 1) newParts.push({ type: 'highlight', content: h });
+        });
+      });
+      parts = newParts;
+    });
+
+    // 2. Procesar Términos del Glosario (solo en partes que aún son strings)
+    glossaryTerms.forEach(termObj => {
+      const term = termObj.term;
+      const newParts: (string | React.ReactNode)[] = [];
+      parts.forEach(p => {
+        if (typeof p !== 'string') { newParts.push(p); return; }
+        
+        // Regex para encontrar el término exacto con límites de palabra (\b)
+        const regex = new RegExp(`\\b(${term})\\b`, 'gi');
+        const split = p.split(regex);
+        
+        split.forEach((s, i) => {
+          if (regex.test(s)) {
+            newParts.push({ type: 'glossary', content: s });
+          } else {
+            newParts.push(s);
+          }
         });
       });
       parts = newParts;
     });
 
     return parts.map((p, i) => {
-      if (typeof p === 'string' && p.includes('__MARK__')) {
-        const content = p.replace(/__MARK__/g, '');
-        return (
-          <mark 
-            key={i} 
-            className={`${highlightClass} text-white rounded-[4px] px-1 cursor-pointer hover:opacity-80 transition-opacity inline font-bold`} 
-            title="Eliminar resaltado" 
-            onClick={(e) => { e.stopPropagation(); handleRemoveHighlight(content); }}
-          >
-            {content}
-          </mark>
-        );
+      const partKey = `${blockId}-${i}`;
+      if (typeof p === 'object' && p !== null) {
+        const item = p as { type: string, content: string };
+        if (item.type === 'highlight') {
+          return (
+            <mark 
+              key={partKey} 
+              className={`${highlightClass} text-white rounded-[4px] px-1 cursor-pointer hover:opacity-80 transition-opacity inline font-bold`} 
+              title="Eliminar resaltado" 
+              onClick={(e) => { e.stopPropagation(); handleRemoveHighlight(item.content); }}
+            >
+              {item.content}
+            </mark>
+          );
+        }
+        if (item.type === 'glossary') {
+          const anchorId = `ref-${partKey}`;
+          return (
+            <span
+              id={anchorId}
+              key={partKey}
+              onClick={(e) => { e.stopPropagation(); goToGlossaryTerm(item.content, anchorId); }}
+              className="cursor-pointer border-b border-dotted border-orange-500 text-orange-400 hover:text-orange-300 hover:bg-orange-500/10 transition-colors font-bold"
+              title="Ver definición en glosario"
+            >
+              {item.content}
+            </span>
+          );
+        }
       }
       return p;
     });
@@ -143,10 +224,9 @@ export const CourseView: React.FC<CourseViewProps> = ({
   if (!activeModule) return null;
 
   return (
-    /* Aumentamos el padding izquierdo global (pl-[60px]) para desplazar todo el contenido 20px más a la derecha */
     <div className="flex w-full pl-[60px] pr-10 animate-fade-in pb-20 relative">
       
-      {/* ÍNDICE IZQUIERDA - Añadido px-6 para evitar el recorte del botón activo al escalar */}
+      {/* ÍNDICE IZQUIERDA */}
       <aside className="w-80 space-y-4 shrink-0 sticky top-0 h-fit max-h-[calc(100vh-160px)] overflow-y-auto custom-scrollbar px-6 border-r border-white/5">
         <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] mb-6 pl-2">ÍNDICE</h3>
         <div className="space-y-3">
@@ -156,14 +236,13 @@ export const CourseView: React.FC<CourseViewProps> = ({
             return (
               <button 
                 key={m.id} 
-                onClick={() => setActiveModuleId(m.id)} 
-                className={`w-full flex items-center gap-4 p-5 rounded-2xl text-left transition-all duration-300 ${isActive ? 'bg-white text-slate-900 shadow-2xl scale-105 z-10' : 'bg-[#444444] text-slate-400 border border-white/5 hover:border-orange-500'}`}
+                onClick={() => { setActiveModuleId(m.id); setViewMode('module'); }} 
+                className={`w-full flex items-center gap-4 p-5 rounded-2xl text-left transition-all duration-300 ${isActive && viewMode === 'module' ? 'bg-white text-slate-900 shadow-2xl scale-105 z-10' : 'bg-[#444444] text-slate-400 border border-white/5 hover:border-orange-500'}`}
               >
-                {/* ICONO PÍLDORA VERTICAL */}
-                <div className={`w-6 h-10 rounded-full flex items-center justify-center shrink-0 ${isActive ? 'bg-orange-600 text-white shadow-inner' : isDone ? 'bg-emerald-500 text-white' : 'bg-slate-800 text-slate-500'}`}>
-                  {isDone || isActive ? <CheckCircle2 size={16} strokeWidth={3} /> : <span className="text-[10px] font-black">{i + 1}</span>}
+                <div className={`w-6 h-10 rounded-full flex items-center justify-center shrink-0 ${isActive && viewMode === 'module' ? 'bg-orange-600 text-white shadow-inner' : isDone ? 'bg-emerald-500 text-white' : 'bg-slate-800 text-slate-500'}`}>
+                  {isDone || (isActive && viewMode === 'module') ? <CheckCircle2 size={16} strokeWidth={3} /> : <span className="text-[10px] font-black">{i + 1}</span>}
                 </div>
-                <span className={`text-sm font-bold truncate ${isActive ? 'text-slate-900' : 'text-slate-400'}`}>{cleanMarkdown(m.title)}</span>
+                <span className={`text-sm font-bold truncate ${isActive && viewMode === 'module' ? 'text-slate-900' : 'text-slate-400'}`}>{cleanMarkdown(m.title)}</span>
               </button>
             );
           })}
@@ -178,7 +257,6 @@ export const CourseView: React.FC<CourseViewProps> = ({
       <div className="flex-1 flex justify-center pl-10 pr-4">
         <div className="flex w-full max-w-5xl relative">
           
-          {/* ÁREA DE CONTENIDO */}
           <div className="flex-1 min-w-0">
             <div className="mb-12">
               <p className="text-[10px] font-black text-orange-500 uppercase tracking-[0.3em] mb-2">{pillarTitle}</p>
@@ -193,7 +271,6 @@ export const CourseView: React.FC<CourseViewProps> = ({
                   </div>
                 )}
                 
-                {/* CAJA NARANJA (LO MÁS IMPORTANTE) */}
                 <div className="p-10 bg-gradient-to-br from-orange-600 to-orange-500 rounded-[3rem] text-white shadow-2xl relative overflow-hidden group/card" onMouseUp={handleHighlight}>
                    <Star className="absolute top-[-10px] right-[-10px] w-32 h-32 opacity-10 rotate-12" />
                    <div className="relative z-10">
@@ -202,18 +279,17 @@ export const CourseView: React.FC<CourseViewProps> = ({
                         <Highlighter size={14} className="opacity-0 group-hover/card:opacity-50 transition-opacity" />
                      </div>
                      <p className="text-2xl font-black leading-tight tracking-tight">
-                        {renderContentWithHighlights(cleanMarkdown(activeModule.keyTakeaway), 'bg-[#254bdb]')}
+                        {renderContentWithAllInteractions(cleanMarkdown(activeModule.keyTakeaway), 'takeaway', 'bg-[#254bdb]')}
                      </p>
                    </div>
                 </div>
 
-                {/* BLOQUE DE TEXTO */}
                 <div className="bg-[#444444]/20 p-16 rounded-[4rem] border border-white/5 shadow-inner relative group" onMouseUp={handleHighlight}>
                   <div className="absolute top-8 right-8 text-slate-600 group-hover:text-orange-500 transition-colors pointer-events-none"><Highlighter size={24} /></div>
                   <h1 className="text-5xl font-black text-white leading-none tracking-tighter mb-12">{cleanMarkdown(activeModule.title)}</h1>
                   <div className="prose prose-invert max-w-none text-xl text-slate-300 font-medium leading-relaxed space-y-8">
                     {activeModule.contentMarkdown.split('\n').map((line, i) => (
-                      <p key={i}>{renderContentWithHighlights(cleanMarkdown(line))}</p>
+                      <p key={i} id={`line-${i}`}>{renderContentWithAllInteractions(cleanMarkdown(line), `line-${i}`)}</p>
                     ))}
                   </div>
                   <div className="pt-16 mt-16 border-t border-white/5">
@@ -269,11 +345,29 @@ export const CourseView: React.FC<CourseViewProps> = ({
 
             {viewMode === 'glossary' && (
               <div className="p-16 bg-[#444444] rounded-[4rem] border border-white/5 animate-fade-in shadow-2xl">
-                 <div className="flex items-center gap-4 mb-12"><BookOpen size={32} className="text-orange-500" /><h2 className="text-4xl font-black text-white uppercase tracking-tight">GLOSARIO TÉCNICO</h2></div>
+                 <div className="flex items-center gap-4 mb-12">
+                   <BookOpen size={32} className="text-orange-500" />
+                   <h2 className="text-4xl font-black text-white uppercase tracking-tight">GLOSARIO TÉCNICO</h2>
+                 </div>
                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                    {course.glossary.map((g, i) => (
-                     <div key={i} className="p-8 bg-slate-900/50 rounded-3xl border border-white/5 hover:border-orange-500/50 transition-all group">
-                       <h4 className="text-xl font-black text-orange-500 mb-3 group-hover:translate-x-1 transition-transform">{g.term}</h4>
+                     <div 
+                       key={i} 
+                       id={`glossary-${g.term.toLowerCase().replace(/\s+/g, '-')}`}
+                       className="p-8 bg-slate-900/50 rounded-3xl border border-white/5 hover:border-orange-500/50 transition-all group relative"
+                     >
+                       <div className="flex justify-between items-start mb-3">
+                         <h4 className="text-xl font-black text-orange-500 group-hover:translate-x-1 transition-transform">{g.term}</h4>
+                         {lastAnchor && (
+                            <button 
+                              onClick={returnToText}
+                              className="p-2 bg-white/5 hover:bg-orange-500 text-slate-400 hover:text-white rounded-lg transition-all"
+                              title="Volver al texto"
+                            >
+                              <CornerUpLeft size={16} />
+                            </button>
+                         )}
+                       </div>
                        <p className="text-slate-400 font-medium leading-relaxed">{g.definition}</p>
                      </div>
                    ))}
@@ -283,7 +377,6 @@ export const CourseView: React.FC<CourseViewProps> = ({
             )}
           </div>
 
-          {/* COLUMNA DE FLECHAS (AJUSTADA A top-[72%]) */}
           <div className="w-[60px] flex-none relative ml-6">
             <div className="sticky top-[72%] flex flex-col gap-4 items-center z-[100]">
               <button 

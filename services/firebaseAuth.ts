@@ -13,7 +13,6 @@ export interface UserProfile {
   uid: string;
   email: string;
   displayName: string;
-  geminiApiKey?: string;
   createdAt: number;
 }
 
@@ -75,17 +74,6 @@ export const getUserProfile = async (uid: string): Promise<UserProfile | null> =
   } catch (error) {
     console.error('Error obteniendo perfil:', error);
     return null;
-  }
-};
-
-// Actualizar API key del usuario
-export const updateUserApiKey = async (uid: string, apiKey: string): Promise<void> => {
-  try {
-    const docRef = doc(db, 'users', uid);
-    await setDoc(docRef, { geminiApiKey: apiKey }, { merge: true });
-  } catch (error) {
-    console.error('Error actualizando API key:', error);
-    throw new Error('Error al guardar la API key');
   }
 };
 

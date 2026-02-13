@@ -103,8 +103,12 @@ const courseSchema: Schema = {
 
 // --- API CALLS ---
 
-export const generateModuleImage = async (description: string, userApiKey?: string): Promise<string> => {
-  const apiKey = userApiKey || import.meta.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
+export const generateModuleImage = async (description: string): Promise<string> => {
+  const apiKey = import.meta.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    console.warn('⚠️ No hay API key configurada');
+    return '';
+  }
   const ai = new GoogleGenAI({ apiKey });
   const prompt = `A high quality, clean software screenshot or minimalist UI illustrative technical diagram of: ${description}. Aesthetic: Modern software, dark mode where appropriate, professional design, 4k.`;
   
@@ -172,10 +176,10 @@ export const extractTextFromPDF = async (file: File, onProgress?: (progress: num
   }
 };
 
-export const generatePillars = async (topic: string, language: string, contextContent?: string, userApiKey?: string): Promise<{ pillars: Pillar[], relatedTopics: string[] }> => {
-  const apiKey = userApiKey || import.meta.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
+export const generatePillars = async (topic: string, language: string, contextContent?: string): Promise<{ pillars: Pillar[], relatedTopics: string[] }> => {
+  const apiKey = import.meta.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
   if (!apiKey) {
-    throw new Error('No se ha configurado una API key. Por favor configura tu API key en Ajustes.');
+    throw new Error('No se ha configurado la API key. Contacta al administrador.');
   }
   const ai = new GoogleGenAI({ apiKey });
   
@@ -208,10 +212,10 @@ Identifica 10 pilares fundamentales y 6 temas relacionados. JSON. Idioma: ${lang
   return JSON.parse(response.text || '{"pillars":[], "relatedTopics":[]}');
 };
 
-export const generateVariations = async (pillar: string, parentTopic: string, language: string, contextContent?: string, userApiKey?: string): Promise<Variation[]> => {
-  const apiKey = userApiKey || import.meta.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
+export const generateVariations = async (pillar: string, parentTopic: string, language: string, contextContent?: string): Promise<Variation[]> => {
+  const apiKey = import.meta.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
   if (!apiKey) {
-    throw new Error('No se ha configurado una API key. Por favor configura tu API key en Ajustes.');
+    throw new Error('No se ha configurado la API key. Contacta al administrador.');
   }
   const ai = new GoogleGenAI({ apiKey });
   
@@ -244,11 +248,11 @@ INSTRUCCIONES:
   return data.variations || [];
 };
 
-export const generateCourse = async (variationTitle: string, variationDescription: string, parentTopic: string, depth: CourseDepth, language: string, contextContent?: string, questionsPerQuiz: number = 3, userApiKey?: string): Promise<Course> => {
+export const generateCourse = async (variationTitle: string, variationDescription: string, parentTopic: string, depth: CourseDepth, language: string, contextContent?: string, questionsPerQuiz: number = 3): Promise<Course> => {
   console.log('📚 generateCourse llamado con questionsPerQuiz:', questionsPerQuiz);
-  const apiKey = userApiKey || import.meta.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
+  const apiKey = import.meta.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
   if (!apiKey) {
-    throw new Error('No se ha configurado una API key. Por favor configura tu API key en Ajustes.');
+    throw new Error('No se ha configurado la API key. Contacta al administrador.');
   }
   const ai = new GoogleGenAI({ apiKey });
   

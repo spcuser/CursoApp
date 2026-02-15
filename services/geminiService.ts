@@ -114,7 +114,7 @@ export const generateModuleImage = async (description: string): Promise<string> 
   
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash-image',
+      model: 'gemini-2.5-flash',
       contents: { parts: [{ text: prompt }] },
       config: { imageConfig: { aspectRatio: "16:9" } }
     });
@@ -181,34 +181,24 @@ export const generatePillars = async (topic: string, language: string, contextCo
   if (!apiKey) {
     throw new Error('No se ha configurado la API key. Contacta al administrador.');
   }
+  
   const ai = new GoogleGenAI({ apiKey });
   
-  let basePrompt = '';
-  
+  let basePrompt = `Actúa como un mentor experto en: "${topic}".`;
   if (contextContent) {
-    // Si hay contenido de PDF, usar SOLO ese contenido
-    basePrompt = `Analiza EXCLUSIVAMENTE el siguiente documento PDF. NO busques información externa ni uses conocimiento general.
-
-CONTENIDO DEL DOCUMENTO:
-${contextContent.substring(0, 400000)}
-
-INSTRUCCIONES:
-- Identifica 10 pilares fundamentales basados ÚNICAMENTE en el contenido del documento
-- Sugiere 6 temas relacionados que aparezcan en el documento
-- Responde en ${language}
-- Formato JSON requerido`;
-  } else {
-    // Comportamiento normal sin PDF
-    basePrompt = `Actúa como un mentor experto en: "${topic}".
-Identifica 10 pilares fundamentales y 6 temas relacionados. JSON. Idioma: ${language}.`;
+    basePrompt += `\nUsa este contexto técnico: ${contextContent.substring(0, 400000)}`;
   }
+  basePrompt += `\nIdentifica 10 pilares y 6 temas relacionados. JSON. Idioma: ${language}.`;
 
   const response = await ai.models.generateContent({
-    model: 'gemini-3-flash-preview',
+    model: 'gemini-2.5-flash',
     contents: basePrompt,
-    config: { responseMimeType: 'application/json', responseSchema: pillarsResponseSchema }
+    config: { 
+      responseMimeType: 'application/json', 
+      responseSchema: pillarsResponseSchema 
+    }
   });
-  
+
   return JSON.parse(response.text || '{"pillars":[], "relatedTopics":[]}');
 };
 
@@ -217,33 +207,19 @@ export const generateVariations = async (pillar: string, parentTopic: string, la
   if (!apiKey) {
     throw new Error('No se ha configurado la API key. Contacta al administrador.');
   }
+  
   const ai = new GoogleGenAI({ apiKey });
-  
-  let prompt = '';
-  
-  if (contextContent) {
-    // Si hay contenido de PDF, usar SOLO ese contenido
-    prompt = `Basándote EXCLUSIVAMENTE en el siguiente documento PDF, genera 10 propuestas de cursos para el pilar "${pillar}".
+  const prompt = `Genera 10 propuestas de cursos para "${pillar}" sobre "${parentTopic}". JSON. Idioma: ${language}.`;
 
-CONTENIDO DEL DOCUMENTO:
-${contextContent.substring(0, 400000)}
-
-INSTRUCCIONES:
-- Usa ÚNICAMENTE la información del documento
-- NO agregues conocimiento externo
-- Genera variaciones basadas en diferentes aspectos del documento
-- Responde en ${language}
-- Formato JSON requerido`;
-  } else {
-    // Comportamiento normal sin PDF
-    prompt = `Genera 10 propuestas de cursos para "${pillar}" sobre "${parentTopic}". JSON. Idioma: ${language}.`;
-  }
-  
   const response = await ai.models.generateContent({
-    model: 'gemini-3-flash-preview',
+    model: 'gemini-2.5-flash',
     contents: prompt,
-    config: { responseMimeType: 'application/json', responseSchema: variationsSchema }
+    config: { 
+      responseMimeType: 'application/json', 
+      responseSchema: variationsSchema 
+    }
   });
+
   const data = JSON.parse(response.text || '{"variations":[]}');
   return data.variations || [];
 };
@@ -254,51 +230,27 @@ export const generateCourse = async (variationTitle: string, variationDescriptio
   if (!apiKey) {
     throw new Error('No se ha configurado la API key. Contacta al administrador.');
   }
+  
   const ai = new GoogleGenAI({ apiKey });
   
-  let prompt = '';
-  
-  if (contextContent) {
-    // Si hay contenido de PDF, usar SOLO ese contenido
-    prompt = `Crea un curso experto sobre: "${variationTitle}" basándote EXCLUSIVAMENTE en el siguiente documento PDF.
+  const prompt = `Crea un curso experto sobre: "${variationTitle}". 
+Reglas:
+- Markdown para contentMarkdown.
+- NO USES listas numeradas (1., 2.). USA SIEMPRE viñetas (•).
+- Profundidad: "${depth}".
+- ${questionsPerQuiz} preguntas de quiz por módulo.
+- Proporciona imageDescription detallada para cada módulo.
+Idioma: ${language}. JSON.`;
 
-CONTENIDO DEL DOCUMENTO:
-${contextContent.substring(0, 400000)}
-
-INSTRUCCIONES ESTRICTAS:
-- Usa ÚNICAMENTE la información del documento PDF
-- NO agregues conocimiento externo ni información de internet
-- Profundidad: "${depth}"
-- Markdown para contentMarkdown
-- NO USES listas numeradas (1., 2.). USA SIEMPRE viñetas (•)
-- ${questionsPerQuiz} preguntas de quiz por módulo basadas en el documento
-- Proporciona imageDescription detallada para cada módulo
-- Responde en ${language}
-- Formato JSON requerido`;
-  } else {
-    // Comportamiento normal sin PDF
-    prompt = `
-    Crea un curso experto sobre: "${variationTitle}". 
-    Reglas:
-    - Markdown para contentMarkdown.
-    - NO USES listas numeradas (1., 2.). USA SIEMPRE viñetas (•).
-    - Profundidad: "${depth}".
-    - ${questionsPerQuiz} preguntas de quiz por módulo.
-    - Proporciona imageDescription detallada para cada módulo.
-    Idioma: ${language}. JSON.
-  `;
-  }
-  
   const response = await ai.models.generateContent({
-    model: 'gemini-3-pro-preview',
+    model: 'gemini-2.5-pro',
     contents: prompt,
     config: { 
-      //thinkingConfig: { thinkingBudget: 4000 }, // Thinking is not supported for gemini-3-pro-preview
       responseMimeType: 'application/json', 
-      responseSchema: courseSchema,
+      responseSchema: courseSchema 
     }
   });
-  
+
   const result = JSON.parse(response.text || '{}');
   if (!result.modules) result.modules = [];
   return result as Course;

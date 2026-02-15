@@ -1,36 +1,57 @@
 import React, { useState } from 'react';
-import { X, LogIn, UserPlus, Mail, Lock, User } from 'lucide-react';
+import { X, LogIn, UserPlus, Mail, Lock, User, KeyRound } from 'lucide-react';
 
 interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
   onLogin: (email: string, password: string) => Promise<void>;
   onRegister: (email: string, password: string, displayName: string) => Promise<void>;
+  onResetPassword: (email: string) => Promise<void>;
 }
 
 export const AuthModal: React.FC<AuthModalProps> = ({ 
   isOpen, 
   onClose, 
   onLogin,
-  onRegister
+  onRegister,
+  onResetPassword
 }) => {
   const [isLoginMode, setIsLoginMode] = useState(true);
+  const [isResetMode, setIsResetMode] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
 
   if (!isOpen) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setSuccessMessage('');
     setLoading(true);
 
     try {
-      if (isLoginMode) {
+      if (isResetMode) {
+        // Modo recuperación de contraseña
+        if (!email.trim()) {
+          setError('El email es requerido');
+          setLoading(false);
+          return;
+        }
+        await onResetPassword(email);
+        setSuccessMessage('Email de recuperación enviado. Revisa tu bandeja de entrada.');
+        setEmail('');
+        // Volver al modo login después de 3 segundos
+        setTimeout(() => {
+          setIsResetMode(false);
+          setSuccessMessage('');
+        }, 3000);
+      } else if (isLoginMode) {
         await onLogin(email, password);
+        onClose();
       } else {
         if (!displayName.trim()) {
           setError('El nombre es requerido');
@@ -38,9 +59,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           return;
         }
         await onRegister(email, password, displayName);
+        onClose();
       }
-      // Cerrar modal al éxito
-      onClose();
     } catch (err: any) {
       setError(err.message || 'Error en la autenticación');
     } finally {
@@ -50,8 +70,19 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
   const toggleMode = () => {
     setIsLoginMode(!isLoginMode);
+    setIsResetMode(false);
     setError('');
+    setSuccessMessage('');
     setEmail('');
+    setPassword('');
+    setDisplayName('');
+  };
+
+  const toggleResetMode = () => {
+    setIsResetMode(!isResetMode);
+    setIsLoginMode(true);
+    setError('');
+    setSuccessMessage('');
     setPassword('');
     setDisplayName('');
   };
@@ -61,7 +92,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       <div className="bg-slate-800 rounded-3xl shadow-2xl w-full max-w-md overflow-hidden border border-slate-700">
         <div className="p-5 border-b border-slate-700 flex justify-between items-center bg-slate-900/50">
           <h3 className="font-black text-white uppercase tracking-widest text-sm">
-            {isLoginMode ? 'Iniciar Sesión' : 'Crear Cuenta'}
+            {isResetMode ? 'Recuperar Contraseña' : isLoginMode ? 'Iniciar Sesión' : 'Crear Cuenta'}
           </h3>
           <button 
             onClick={onClose} 
@@ -72,7 +103,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         </div>
         
         <form onSubmit={handleSubmit} className="p-6 space-y-5">
-          {!isLoginMode && (
+          {!isLoginMode && !isResetMode && (
             <div className="space-y-2">
               <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">
                 Nombre
@@ -108,30 +139,38 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             </div>
           </div>
 
-          <div className="space-y-2">
-            <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-              Contraseña
-            </label>
-            <div className="relative">
-              <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full bg-slate-900/50 border-2 border-slate-700 rounded-xl py-3 pl-12 pr-4 text-white focus:border-orange-500 transition-all outline-none"
-                placeholder="••••••••"
-                required
-                minLength={6}
-              />
+          {!isResetMode && (
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                Contraseña
+              </label>
+              <div className="relative">
+                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full bg-slate-900/50 border-2 border-slate-700 rounded-xl py-3 pl-12 pr-4 text-white focus:border-orange-500 transition-all outline-none"
+                  placeholder="••••••••"
+                  required
+                  minLength={6}
+                />
+              </div>
+              {!isLoginMode && (
+                <p className="text-xs text-slate-500 mt-1">Mínimo 6 caracteres</p>
+              )}
             </div>
-            {!isLoginMode && (
-              <p className="text-xs text-slate-500 mt-1">Mínimo 6 caracteres</p>
-            )}
-          </div>
+          )}
 
           {error && (
             <div className="p-3 bg-red-900/30 border border-red-700 rounded-xl">
               <p className="text-sm text-red-400">{error}</p>
+            </div>
+          )}
+
+          {successMessage && (
+            <div className="p-3 bg-green-900/30 border border-green-700 rounded-xl">
+              <p className="text-sm text-green-400">{successMessage}</p>
             </div>
           )}
 
@@ -144,24 +183,40 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               <span>Procesando...</span>
             ) : (
               <>
-                {isLoginMode ? <LogIn size={18} /> : <UserPlus size={18} />}
-                <span>{isLoginMode ? 'Entrar' : 'Registrarse'}</span>
+                {isResetMode ? <KeyRound size={18} /> : isLoginMode ? <LogIn size={18} /> : <UserPlus size={18} />}
+                <span>{isResetMode ? 'Enviar Email' : isLoginMode ? 'Entrar' : 'Registrarse'}</span>
               </>
             )}
           </button>
 
-          <div className="pt-4 border-t border-slate-700 text-center">
-            <button
-              type="button"
-              onClick={toggleMode}
-              className="text-sm text-slate-400 hover:text-orange-500 transition-colors"
-            >
-              {isLoginMode ? (
-                <>¿No tienes cuenta? <span className="font-bold">Regístrate</span></>
-              ) : (
-                <>¿Ya tienes cuenta? <span className="font-bold">Inicia sesión</span></>
-              )}
-            </button>
+          <div className="pt-4 border-t border-slate-700 text-center space-y-2">
+            {!isResetMode && (
+              <button
+                type="button"
+                onClick={toggleMode}
+                className="text-sm text-slate-400 hover:text-orange-500 transition-colors block w-full"
+              >
+                {isLoginMode ? (
+                  <>¿No tienes cuenta? <span className="font-bold">Regístrate</span></>
+                ) : (
+                  <>¿Ya tienes cuenta? <span className="font-bold">Inicia sesión</span></>
+                )}
+              </button>
+            )}
+            
+            {isLoginMode && (
+              <button
+                type="button"
+                onClick={toggleResetMode}
+                className="text-sm text-slate-400 hover:text-orange-500 transition-colors block w-full"
+              >
+                {isResetMode ? (
+                  <>Volver a <span className="font-bold">Iniciar sesión</span></>
+                ) : (
+                  <>¿Olvidaste tu contraseña? <span className="font-bold">Recupérala</span></>
+                )}
+              </button>
+            )}
           </div>
         </form>
       </div>

@@ -20,8 +20,8 @@ import {
   registerUser, 
   loginUser, 
   logoutUser, 
-  getUserProfile, 
-  updateUserApiKey, 
+  getUserProfile,
+  resetPassword,
   UserProfile 
 } from './services/firebaseAuth';
 import { 
@@ -36,7 +36,6 @@ import { CourseView } from './components/CourseView';
 import { LoadingScreen } from './components/LoadingScreen';
 import { SettingsModal } from './components/SettingsModal';
 import { AuthModal } from './components/AuthModal';
-import { ApiKeySetup } from './components/ApiKeySetup';
 import { Sidebar } from './components/Sidebar';
 import { 
   Folder, BrainCircuit, Settings, Sun, Moon, Search, Trash2, FileText, Upload, Download, Maximize, Minimize, Save, LogOut
@@ -62,9 +61,7 @@ export default function App() {
   // Estados de autenticación Firebase
   const [user, setUser] = useState<User | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
-  const [userApiKey, setUserApiKey] = useState<string>('');
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
-  const [isApiKeySetupOpen, setIsApiKeySetupOpen] = useState(false);
   const [authLoading, setAuthLoading] = useState(true);
   
   // Estados existentes
@@ -119,21 +116,13 @@ export default function App() {
         // Usuario autenticado - cargar perfil y cursos
         const profile = await getUserProfile(firebaseUser.uid);
         setUserProfile(profile);
-        setUserApiKey(profile?.geminiApiKey || '');
         
         // Cargar cursos del usuario desde Firestore
         const courses = await getUserCourses(firebaseUser.uid);
         setSavedCourses(courses);
-        
-        // Si no tiene API key, mostrar modal de configuración
-        if (!profile?.geminiApiKey) {
-          console.log('⚠️ Usuario sin API key, mostrando modal de configuración');
-          setIsApiKeySetupOpen(true);
-        }
       } else {
         // Usuario no autenticado - limpiar datos y mostrar login
         setUserProfile(null);
-        setUserApiKey('');
         setSavedCourses([]);
         setIsAuthModalOpen(true);
       }
@@ -211,8 +200,8 @@ export default function App() {
     setShowSearchResults(results.length > 0);
   }, [searchTerm, pillars, variations, course]);
 
-  // Búsqueda incremental global
-  useEffect(() => {
+  // Guardar sesión actual
+  const saveCurrentSession = async () => {
     if (!currentSessionId || !topic) return;
     
     const sessionData: SavedCourse = {
@@ -555,9 +544,70 @@ export default function App() {
   const canGoToVariations = selectedPillar !== null && variations.length > 0;
   const canGoToCourse = course !== null;
 
+  // Manejar autenticación
+  const handleLogin = async (email: string, password: string) => {
+    try {
+      await loginUser(email, password);
+      setIsAuthModalOpen(false);
+    } catch (error: any) {
+      throw error; // Propagar el error para que AuthModal lo muestre
+    }
+  };
+
+  const handleRegister = async (email: string, password: string, displayName: string) => {
+    try {
+      await registerUser(email, password, displayName);
+      setIsAuthModalOpen(false);
+    } catch (error: any) {
+      throw error; // Propagar el error para que AuthModal lo muestre
+    }
+  };
+
+  const handleResetPassword = async (email: string) => {
+    try {
+      await resetPassword(email);
+    } catch (error: any) {
+      throw error; // Propagar el error para que AuthModal lo muestre
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await logoutUser();
+      // El estado se limpiará automáticamente en el useEffect de onAuthChange
+    } catch (error: any) {
+      alert(`Error al cerrar sesión: ${error.message}`);
+    }
+  };
+
+  // Mostrar pantalla de carga mientras se verifica autenticación
+  if (authLoading) {
+    return (
+      <div className="h-screen flex items-center justify-center bg-slate-950">
+        <LoadingScreen message="Verificando autenticación..." />
+      </div>
+    );
+  }
+
   return (
     <div className={`h-screen flex flex-col font-sans overflow-hidden transition-all ${darkMode ? 'bg-slate-950 text-slate-200' : 'bg-slate-50 text-slate-900'}`}>
-      <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} onDownloadBackup={handleExportHistory} t={t} quizQuestionsCount={quizQuestionsCount} onQuizQuestionsCountChange={setQuizQuestionsCount} />
+      {/* Modal de autenticación */}
+      <AuthModal 
+        isOpen={isAuthModalOpen} 
+        onClose={() => {}} // No permitir cerrar sin autenticarse
+        onLogin={handleLogin}
+        onRegister={handleRegister}
+        onResetPassword={handleResetPassword}
+      />
+      
+      <SettingsModal 
+        isOpen={isSettingsOpen} 
+        onClose={() => setIsSettingsOpen(false)} 
+        onDownloadBackup={handleExportHistory} 
+        t={t} 
+        quizQuestionsCount={quizQuestionsCount} 
+        onQuizQuestionsCountChange={setQuizQuestionsCount}
+      />
       <input type="file" ref={fileImportRef} className="hidden" accept=".json" onChange={handleImportHistory} />
 
       <header className={`h-24 px-10 border-b flex items-center justify-between shrink-0 z-[100] transition-all
@@ -707,6 +757,15 @@ export default function App() {
             <button onClick={toggleFullscreen} className="text-slate-400 hover:text-white p-2 rounded-lg hover:bg-white/5 transition-colors">{isFullscreen ? <Minimize size={26} /> : <Maximize size={26} />}</button>
             <button onClick={() => setDarkMode(!darkMode)} className="text-slate-400 hover:text-white p-2 rounded-lg hover:bg-white/5 transition-colors">{darkMode ? <Sun size={26} /> : <Moon size={26} />}</button>
             <button onClick={() => setIsSettingsOpen(true)} className="text-slate-400 hover:text-white p-2 rounded-lg hover:bg-white/5 transition-colors"><Settings size={26} /></button>
+            {user && (
+              <button 
+                onClick={handleLogout} 
+                className="text-slate-400 hover:text-rose-500 p-2 rounded-lg hover:bg-white/5 transition-colors"
+                title="Cerrar sesión"
+              >
+                <LogOut size={26} />
+              </button>
+            )}
           </div>
         </div>
       </header>

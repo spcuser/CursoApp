@@ -61,6 +61,17 @@ export const logoutUser = async (): Promise<void> => {
   }
 };
 
+// Recuperar contraseña
+export const resetPassword = async (email: string): Promise<void> => {
+  try {
+    const { sendPasswordResetEmail } = await import('firebase/auth');
+    await sendPasswordResetEmail(auth, email);
+  } catch (error: any) {
+    console.error('Error enviando email de recuperación:', error);
+    throw new Error(getAuthErrorMessage(error.code));
+  }
+};
+
 // Obtener perfil de usuario
 export const getUserProfile = async (uid: string): Promise<UserProfile | null> => {
   try {

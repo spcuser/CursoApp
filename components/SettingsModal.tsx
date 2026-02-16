@@ -27,16 +27,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-fade-in">
-      <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-2xl w-full max-w-md overflow-hidden transition-colors border border-slate-200 dark:border-slate-700">
-        <div className="p-5 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50 dark:bg-slate-900/50">
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 pt-32 pb-8 bg-slate-900/50 backdrop-blur-sm animate-fade-in">
+      <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-2xl w-full max-w-md max-h-[85vh] overflow-hidden transition-colors border border-slate-200 dark:border-slate-700 flex flex-col">
+        <div className="p-5 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50 dark:bg-slate-900/50 shrink-0">
           <h3 className="font-black text-slate-800 dark:text-white uppercase tracking-widest text-sm">{t.settings.title}</h3>
           <button onClick={onClose} className="p-2 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-full transition-colors">
             <X size={20} className="text-slate-500 dark:text-slate-400" />
           </button>
         </div>
         
-        <div className="p-6 space-y-6">
+        <div className="p-6 space-y-6 overflow-y-auto flex-1">
           {/* API Key Configuration */}
           <div className={`p-5 rounded-2xl border space-y-4 ${
             hasApiKey 

@@ -243,9 +243,13 @@ export const CourseView: React.FC<CourseViewProps> = ({
     const nextIdx = quizState.currentIdx + 1;
     if (nextIdx < shuffledQuiz.length) {
       setQuizState(prev => ({ ...prev, currentIdx: nextIdx, selectedIdx: null, showFeedback: false }));
+      // Hacer scroll al inicio para ver la nueva pregunta completa
+      setTimeout(() => onScrollToTop(), 100);
     } else {
       setQuizState(prev => ({ ...prev, finished: true, showFeedback: false }));
       onQuizComplete(quizState.score, shuffledQuiz.length);
+      // Hacer scroll al inicio para ver los resultados
+      setTimeout(() => onScrollToTop(), 100);
     }
   };
 
@@ -254,6 +258,8 @@ export const CourseView: React.FC<CourseViewProps> = ({
       setShuffledQuiz(randomizeQuiz(activeModule.quiz));
     }
     setQuizState({currentIdx: 0, score: 0, finished: false, selectedIdx: null, showFeedback: false, failedQuestions: []});
+    // Hacer scroll al inicio para ver la primera pregunta
+    setTimeout(() => onScrollToTop(), 100);
   };
 
   const handleReviewFailedQuestion = (questionText: string) => {
@@ -321,7 +327,7 @@ export const CourseView: React.FC<CourseViewProps> = ({
           })}
         </div>
         <div className="pt-8 space-y-3">
-          <button onClick={() => setViewMode('quiz')} className={`w-full flex items-center gap-3 p-4 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${viewMode === 'quiz' ? 'bg-orange-600 text-white shadow-lg' : 'bg-slate-800 text-slate-500 hover:text-white'}`}><HelpCircle size={18} /><span>EXAMEN</span></button>
+          <button onClick={() => { setViewMode('quiz'); setTimeout(() => onScrollToTop(), 100); }} className={`w-full flex items-center gap-3 p-4 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${viewMode === 'quiz' ? 'bg-orange-600 text-white shadow-lg' : 'bg-slate-800 text-slate-500 hover:text-white'}`}><HelpCircle size={18} /><span>EXAMEN</span></button>
           <button onClick={() => setViewMode('glossary')} className={`w-full flex items-center gap-3 p-4 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${viewMode === 'glossary' ? 'bg-orange-600 text-white shadow-lg' : 'bg-slate-800 text-slate-500 hover:text-white'}`}><BookOpen size={18} /><span>GLOSARIO</span></button>
         </div>
       </aside>

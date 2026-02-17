@@ -83,3 +83,40 @@ export const deleteCourse = async (userId: string, courseId: string): Promise<vo
     throw new Error('Error al eliminar el curso');
   }
 };
+
+// Buscar curso por tema, pilar y variación (compartido entre todos los usuarios)
+export const findCourseByVariation = async (
+  topic: string,
+  pillarTitle: string,
+  variationTitle: string
+): Promise<SavedCourse | null> => {
+  try {
+    console.log('🔍 Buscando curso en Firestore:', { topic, pillarTitle, variationTitle });
+    
+    const coursesRef = collection(db, 'courses');
+    const q = query(
+      coursesRef,
+      where('topic', '==', topic),
+      where('selectedPillar.title', '==', pillarTitle),
+      where('selectedVariation.title', '==', variationTitle),
+      limit(1)
+    );
+    
+    const querySnapshot = await getDocs(q);
+    
+    if (!querySnapshot.empty) {
+      const courseData = querySnapshot.docs[0].data() as SavedCourse;
+      // Verificar que tenga un curso completo generado
+      if (courseData.course && courseData.course.modules && courseData.course.modules.length > 0) {
+        console.log('✅ Curso encontrado en Firestore');
+        return courseData;
+      }
+    }
+    
+    console.log('ℹ️ Curso no encontrado en Firestore, se generará uno nuevo');
+    return null;
+  } catch (error) {
+    console.error('❌ Error buscando curso:', error);
+    return null;
+  }
+};

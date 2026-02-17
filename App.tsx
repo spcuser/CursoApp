@@ -345,7 +345,9 @@ export default function App() {
     setPdfContext(contextContent || ''); // Guardar el contexto del PDF
     setIsLoadedFromDatabase(false); // Nuevo contenido, no viene de BD
     
-    // Verificar si ya existe un curso guardado para este tema
+    // DESHABILITADO: No cargar cursos guardados automáticamente
+    // Esto causaba que al seleccionar diferentes variaciones, siempre mostrara el mismo curso
+    /*
     const existingCourse = savedCourses.find(c => c.topic.toLowerCase() === inputTopic.toLowerCase());
     
     if (existingCourse) {
@@ -355,6 +357,7 @@ export default function App() {
         return;
       }
     }
+    */
     
     setLoading(true); 
     setLoadingMessage(t.loading.analyzing);
@@ -419,28 +422,29 @@ export default function App() {
     setSelectedVariation(v); 
     setCurrentDepth(d);
     
-    // Si el contenido viene de la base de datos, NUNCA llamar a la API
-    if (isLoadedFromDatabase) {
-      console.log('✅ Contenido de BD, navegando al curso sin llamar a la API');
-      setStep('COURSE');
-      if (course?.modules?.[0]?.id) {
-        setActiveModuleId(course.modules[0].id);
+    // Primero buscar si ya existe un curso en Firestore
+    if (selectedPillar && user) {
+      setLoading(true);
+      setLoadingMessage('Buscando curso...');
+      
+      try {
+        const { findCourseByVariation } = await import('./services/firebaseDb');
+        const existingCourse = await findCourseByVariation(topic, selectedPillar.title, v.title);
+        
+        if (existingCourse && existingCourse.course) {
+          console.log('✅ Curso encontrado en Firestore, cargando...');
+          setCourse(existingCourse.course);
+          setStep('COURSE');
+          setActiveModuleId(existingCourse.course.modules[0]?.id || null);
+          setLoading(false);
+          return;
+        }
+      } catch (error) {
+        console.error('Error buscando curso:', error);
       }
-      return;
     }
     
-    // Si ya tenemos un curso cargado, solo navegar
-    if (course && course.modules && course.modules.length > 0) {
-      console.log('✅ Curso ya existe, navegando sin llamar a la API');
-      setStep('COURSE');
-      if (course.modules[0]?.id) {
-        setActiveModuleId(course.modules[0].id);
-      }
-      return;
-    }
-    
-    // Solo generar si NO hay curso cargado
-    console.log('🎯 Generando nuevo curso con', quizQuestionsCount, 'preguntas por quiz');
+    // Si no existe, generar nuevo curso
     setLoading(true); 
     setLoadingMessage(t.loading.building);
     try {
@@ -448,6 +452,34 @@ export default function App() {
       setCourse(c); 
       setStep('COURSE'); 
       setActiveModuleId(c.modules[0]?.id || null);
+      
+      // Guardar el curso en Firestore para futuros usos
+      if (user && selectedPillar) {
+        try {
+          const { saveCourse } = await import('./services/firebaseDb');
+          const courseToSave: SavedCourse = {
+            id: safeGenerateId(),
+            createdAt: Date.now(),
+            lastUpdated: Date.now(),
+            step: 'COURSE',
+            topic,
+            relatedTopics,
+            pillars,
+            selectedPillar,
+            variations,
+            selectedVariation: v,
+            course: c,
+            depth: d,
+            completedModuleIds: [],
+            userHighlights: {},
+            quizResults: {}
+          };
+          await saveCourse(user.uid, courseToSave);
+          console.log('✅ Curso guardado en Firestore para futuros usos');
+        } catch (saveError) {
+          console.error('Error guardando curso:', saveError);
+        }
+      }
     } catch (e: any) { 
       console.error('❌ Error generando curso:', e);
       alert(`Error al generar curso: ${e.message || 'Error desconocido'}`); 

@@ -144,3 +144,41 @@ export const getCourse = async (id: string): Promise<SavedCourse | null> => {
     return null;
   }
 };
+
+// Buscar un curso por tema, pilar y variación
+export const findCourseByVariation = async (
+  topic: string, 
+  pillarTitle: string, 
+  variationTitle: string
+): Promise<SavedCourse | null> => {
+  try {
+    console.log('🔍 Buscando curso en BD:', { topic, pillarTitle, variationTitle });
+    
+    const { data, error } = await supabase
+      .from('courses')
+      .select('*')
+      .eq('topic', topic)
+      .eq('selected_pillar->>title', pillarTitle)
+      .eq('selected_variation->>title', variationTitle)
+      .not('course', 'is', null)
+      .order('last_updated', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    
+    if (error) {
+      console.error('❌ Error buscando curso:', error);
+      return null;
+    }
+    
+    if (data) {
+      console.log('✅ Curso encontrado en BD');
+      return fromDBCourse(data);
+    }
+    
+    console.log('ℹ️ Curso no encontrado en BD, se generará uno nuevo');
+    return null;
+  } catch (err) {
+    console.error('❌ Error:', err);
+    return null;
+  }
+};

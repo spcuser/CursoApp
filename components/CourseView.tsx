@@ -62,15 +62,13 @@ export const CourseView: React.FC<CourseViewProps> = ({
     score: number, 
     finished: boolean,
     selectedIdx: number | null,
-    showFeedback: boolean,
-    failedQuestions: Array<{ question: QuizQuestion, questionIndex: number }>
+    showFeedback: boolean
   }>({
     currentIdx: 0, 
     score: 0, 
     finished: false,
     selectedIdx: null,
-    showFeedback: false,
-    failedQuestions: []
+    showFeedback: false
   });
   
   const activeModule = course.modules.find(m => m.id === activeModuleId) || course.modules[0];
@@ -102,7 +100,7 @@ export const CourseView: React.FC<CourseViewProps> = ({
       setShuffledQuiz(randomizeQuiz(activeModule.quiz));
     }
     
-    setQuizState({currentIdx: 0, score: 0, finished: false, selectedIdx: null, showFeedback: false, failedQuestions: []});
+    setQuizState({currentIdx: 0, score: 0, finished: false, selectedIdx: null, showFeedback: false});
   }, [activeModuleId]);
 
   const handleHighlight = () => {
@@ -229,27 +227,16 @@ export const CourseView: React.FC<CourseViewProps> = ({
     if (quizState.showFeedback || shuffledQuiz.length === 0) return;
     const currentQuestion = shuffledQuiz[quizState.currentIdx];
     const isCorrect = idx === currentQuestion.correctAnswerIndex;
-    
-    setQuizState(prev => ({ 
-      ...prev, 
-      selectedIdx: idx, 
-      showFeedback: true, 
-      score: isCorrect ? prev.score + 1 : prev.score,
-      failedQuestions: isCorrect ? prev.failedQuestions : [...prev.failedQuestions, { question: currentQuestion, questionIndex: prev.currentIdx + 1 }]
-    }));
+    setQuizState(prev => ({ ...prev, selectedIdx: idx, showFeedback: true, score: isCorrect ? prev.score + 1 : prev.score }));
   };
 
   const handleNextQuestion = () => {
     const nextIdx = quizState.currentIdx + 1;
     if (nextIdx < shuffledQuiz.length) {
       setQuizState(prev => ({ ...prev, currentIdx: nextIdx, selectedIdx: null, showFeedback: false }));
-      // Hacer scroll al inicio para ver la nueva pregunta completa
-      setTimeout(() => onScrollToTop(), 100);
     } else {
       setQuizState(prev => ({ ...prev, finished: true, showFeedback: false }));
       onQuizComplete(quizState.score, shuffledQuiz.length);
-      // Hacer scroll al inicio para ver los resultados
-      setTimeout(() => onScrollToTop(), 100);
     }
   };
 
@@ -257,56 +244,16 @@ export const CourseView: React.FC<CourseViewProps> = ({
     if (activeModule?.quiz) {
       setShuffledQuiz(randomizeQuiz(activeModule.quiz));
     }
-    setQuizState({currentIdx: 0, score: 0, finished: false, selectedIdx: null, showFeedback: false, failedQuestions: []});
-    // Hacer scroll al inicio para ver la primera pregunta
-    setTimeout(() => onScrollToTop(), 100);
-  };
-
-  const handleReviewFailedQuestion = (questionText: string) => {
-    // Cambiar a vista de módulo
-    setViewMode('module');
-    
-    // Hacer scroll al inicio para que el usuario vea el contenido
-    setTimeout(() => {
-      onScrollToTop();
-      
-      // Buscar en el contenido del módulo la parte relacionada con la pregunta
-      // Intentamos encontrar palabras clave de la pregunta en el contenido
-      const keywords = questionText.toLowerCase().split(' ').filter(word => word.length > 4);
-      
-      // Buscar el primer párrafo que contenga alguna palabra clave
-      const lines = activeModule.contentMarkdown.split('\n');
-      let foundLineIndex = -1;
-      
-      for (let i = 0; i < lines.length; i++) {
-        const lineText = lines[i].toLowerCase();
-        if (keywords.some(keyword => lineText.includes(keyword))) {
-          foundLineIndex = i;
-          break;
-        }
-      }
-      
-      // Si encontramos una línea relacionada, hacer scroll a ella
-      if (foundLineIndex >= 0) {
-        setTimeout(() => {
-          const element = document.getElementById(`line-${foundLineIndex}`);
-          if (element) {
-            element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            element.classList.add('bg-blue-500/30', 'rounded-lg', 'animate-pulse');
-            setTimeout(() => element.classList.remove('bg-blue-500/30', 'rounded-lg', 'animate-pulse'), 3000);
-          }
-        }, 300);
-      }
-    }, 100);
+    setQuizState({currentIdx: 0, score: 0, finished: false, selectedIdx: null, showFeedback: false});
   };
 
   if (!activeModule) return null;
 
   return (
-    <div className="flex w-full pl-6 pr-10 animate-fade-in pb-20 relative">
+    <div className="flex w-full pl-[60px] pr-10 animate-fade-in pb-20 relative">
       
       {/* ÍNDICE IZQUIERDA */}
-      <aside className="w-80 space-y-4 shrink-0 sticky top-0 h-fit max-h-[calc(100vh-160px)] overflow-y-auto custom-scrollbar pl-2 pr-6 border-r border-white/5">
+      <aside className="w-80 space-y-4 shrink-0 sticky top-0 h-fit max-h-[calc(100vh-160px)] overflow-y-auto custom-scrollbar px-6 border-r border-white/5">
         <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] mb-6 pl-2">ÍNDICE</h3>
         <div className="space-y-3">
           {course.modules.map((m, i) => {
@@ -327,16 +274,16 @@ export const CourseView: React.FC<CourseViewProps> = ({
           })}
         </div>
         <div className="pt-8 space-y-3">
-          <button onClick={() => { setViewMode('quiz'); setTimeout(() => onScrollToTop(), 100); }} className={`w-full flex items-center gap-3 p-4 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${viewMode === 'quiz' ? 'bg-orange-600 text-white shadow-lg' : 'bg-slate-800 text-slate-500 hover:text-white'}`}><HelpCircle size={18} /><span>EXAMEN</span></button>
+          <button onClick={() => setViewMode('quiz')} className={`w-full flex items-center gap-3 p-4 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${viewMode === 'quiz' ? 'bg-orange-600 text-white shadow-lg' : 'bg-slate-800 text-slate-500 hover:text-white'}`}><HelpCircle size={18} /><span>EXAMEN</span></button>
           <button onClick={() => setViewMode('glossary')} className={`w-full flex items-center gap-3 p-4 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${viewMode === 'glossary' ? 'bg-orange-600 text-white shadow-lg' : 'bg-slate-800 text-slate-500 hover:text-white'}`}><BookOpen size={18} /><span>GLOSARIO</span></button>
         </div>
       </aside>
 
       {/* CONTENEDOR CENTRAL */}
-      <div className="flex-1 flex justify-center pl-4">
-        <div className="w-full max-w-7xl relative flex">
+      <div className="flex-1 flex justify-center pl-10 pr-4">
+        <div className="flex w-full max-w-5xl relative">
           
-          <div className="flex-1 min-w-0 pr-4">
+          <div className="flex-1 min-w-0">
             <div className="mb-12">
               <p className="text-[10px] font-black text-orange-500 uppercase tracking-[0.3em] mb-2">{pillarTitle}</p>
               <h2 className="text-4xl font-black text-white leading-none tracking-tighter">{course.title}</h2>
@@ -410,46 +357,10 @@ export const CourseView: React.FC<CourseViewProps> = ({
                     )}
                   </div>
                 ) : (
-                  <div className="space-y-8">
+                  <div className="space-y-6">
                     <h2 className="text-5xl font-black text-white">¡Examen Finalizado!</h2>
-                    <div className="py-10">
-                      <div className="text-6xl font-black text-orange-500 mb-2">{quizState.score} / {shuffledQuiz.length}</div>
-                      <p className="text-slate-500 font-bold uppercase tracking-widest text-sm">Puntuación Final</p>
-                    </div>
-                    
-                    {/* Mostrar preguntas falladas */}
-                    {quizState.failedQuestions.length > 0 && (
-                      <div className="mt-12 p-8 bg-slate-900/50 rounded-3xl border border-rose-500/30 text-left max-w-3xl mx-auto animate-fade-in-up">
-                        <div className="flex items-center gap-3 mb-6">
-                          <div className="w-10 h-10 bg-rose-500/20 rounded-xl flex items-center justify-center">
-                            <HelpCircle size={20} className="text-rose-400" />
-                          </div>
-                          <h3 className="text-2xl font-black text-white">Preguntas a Repasar</h3>
-                        </div>
-                        <p className="text-slate-400 mb-6 font-medium">Revisa la teoría relacionada con estas preguntas para reforzar tu aprendizaje:</p>
-                        <div className="space-y-4">
-                          {quizState.failedQuestions.map((failed, idx) => (
-                            <div key={idx} className="p-6 bg-slate-800/50 rounded-2xl border border-white/5 hover:border-rose-500/50 transition-all group">
-                              <div className="flex items-start justify-between gap-4">
-                                <div className="flex-1">
-                                  <p className="text-xs font-black text-rose-400 uppercase tracking-widest mb-2">Pregunta {failed.questionIndex}</p>
-                                  <p className="text-white font-bold mb-4">{failed.question.question}</p>
-                                  <button 
-                                    onClick={() => handleReviewFailedQuestion(failed.question.question)}
-                                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-sm transition-all active:scale-95"
-                                  >
-                                    <BookOpen size={16} />
-                                    <span>Revisar Teoría</span>
-                                  </button>
-                                </div>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    
-                    <div className="flex flex-col sm:flex-row gap-4 justify-center mt-8">
+                    <div className="py-10"><div className="text-6xl font-black text-orange-500 mb-2">{quizState.score} / {shuffledQuiz.length}</div><p className="text-slate-500 font-bold uppercase tracking-widest text-sm">Puntuación Final</p></div>
+                    <div className="flex flex-col sm:flex-row gap-4 justify-center">
                       <button onClick={handleResetQuiz} className="px-12 py-4 bg-orange-600 text-white rounded-[2rem] font-black uppercase tracking-widest transition-all active:scale-95 shadow-xl shadow-orange-500/20">REPETIR EXAMEN (BARAJAR)</button>
                       <button onClick={() => setViewMode('module')} className="px-12 py-4 bg-slate-800 text-white rounded-[2rem] font-black uppercase tracking-widest transition-all hover:bg-slate-700">Volver a la lección</button>
                     </div>
@@ -492,7 +403,7 @@ export const CourseView: React.FC<CourseViewProps> = ({
             )}
           </div>
 
-          <div className="w-[60px] flex-none relative">
+          <div className="w-[60px] flex-none relative ml-6">
             <div className="sticky top-[72%] flex flex-col gap-4 items-center z-[100]">
               <button 
                 onClick={onScrollToTop} 

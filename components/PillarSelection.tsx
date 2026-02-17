@@ -12,7 +12,6 @@ interface PillarSelectionProps {
   language: string;
   t: TranslationDictionary;
   searchTerm: string;
-  searchHighlight?: string;
 }
 
 export const PillarSelection: React.FC<PillarSelectionProps> = ({ 
@@ -22,8 +21,7 @@ export const PillarSelection: React.FC<PillarSelectionProps> = ({
   onSelect, 
   onSelectTopic, 
   t, 
-  searchTerm,
-  searchHighlight
+  searchTerm 
 }) => {
   const suggestedTopics = useMemo(() => {
     return Array.isArray(relatedTopics) ? [...relatedTopics].slice(0, 4) : [];
@@ -31,44 +29,21 @@ export const PillarSelection: React.FC<PillarSelectionProps> = ({
 
   const highlightMatch = (text: string) => {
     if (!text) return "";
-    
-    // Primero resaltar el término de búsqueda activa (naranja)
     const term = searchTerm?.trim();
-    if (term && term.length >= 2) {
-      const regex = new RegExp(`(${term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
-      const parts = text.split(regex);
-      return (
-        <span>
-          {parts.map((p, i) => 
-            regex.test(p) ? (
-              <mark key={i} className="bg-orange-500/30 text-orange-100 rounded-[2px] px-[2px] mx-[-1px] font-medium border-b border-orange-300">
-                {p}
-              </mark>
-            ) : p
-          )}
-        </span>
-      );
-    }
-    
-    // Luego resaltar el término del resultado clickeado (azul con animación)
-    const highlight = searchHighlight?.trim();
-    if (highlight && highlight.length >= 2) {
-      const regex = new RegExp(`(${highlight.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
-      const parts = text.split(regex);
-      return (
-        <span>
-          {parts.map((p, i) => 
-            regex.test(p) ? (
-              <mark key={i} className="bg-blue-500 text-white rounded px-2 py-1 animate-pulse font-bold shadow-lg">
-                {p}
-              </mark>
-            ) : p
-          )}
-        </span>
-      );
-    }
-    
-    return text;
+    if (!term || term.length < 2) return text;
+    const regex = new RegExp(`(${term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+    const parts = text.split(regex);
+    return (
+      <span>
+        {parts.map((p, i) => 
+          regex.test(p) ? (
+            <mark key={i} className="bg-orange-500/30 text-orange-100 rounded-[2px] px-[2px] mx-[-1px] font-medium border-b border-orange-300">
+              {p}
+            </mark>
+          ) : p
+        )}
+      </span>
+    );
   };
 
   return (
@@ -86,7 +61,7 @@ export const PillarSelection: React.FC<PillarSelectionProps> = ({
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-[19px] mt-[30px]">
         {(Array.isArray(pillars) ? pillars : []).map((pillar) => pillar && (
-          <div key={pillar.id} className="relative group flex flex-col h-full" data-pillar-id={pillar.id}>
+          <div key={pillar.id} className="relative group flex flex-col h-full">
             <button
               onClick={() => onSelect(pillar)}
               className="flex-1 flex flex-col items-start p-8 bg-[#444444] border border-white/5 rounded-[2rem] shadow-sm hover:shadow-2xl hover:border-orange-500 transition-all duration-500 text-left w-[calc(100%-10px)] overflow-hidden mx-[5px]"

@@ -18,12 +18,6 @@ export default defineConfig(({ mode }) => {
         alias: {
           '@': path.resolve(__dirname, '.'),
         }
-      },
-      optimizeDeps: {
-        exclude: ['pdfjs-dist']
-      },
-      worker: {
-        format: 'es'
       }
     };
 });

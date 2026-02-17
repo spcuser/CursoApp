@@ -56,7 +56,6 @@ export const TopicInput: React.FC<TopicInputProps> = ({ onSubmit, t }) => {
   const [randomSuggestions, setRandomSuggestions] = useState<string[]>([]);
   const [uploadedFile, setUploadedFile] = useState<{ name: string; content: string } | null>(null);
   const [isProcessingFile, setIsProcessingFile] = useState(false);
-  const [processingProgress, setProcessingProgress] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -107,33 +106,13 @@ export const TopicInput: React.FC<TopicInputProps> = ({ onSubmit, t }) => {
                     const file = e.target.files?.[0];
                     if (file) {
                       setIsProcessingFile(true);
-                      setProcessingProgress(0);
-                      try {
-                        const text = await extractTextFromPDF(file, (progress) => {
-                          setProcessingProgress(progress);
-                        });
-                        setUploadedFile({ name: file.name, content: text });
-                      } catch (error) {
-                        alert('Error al procesar el PDF');
-                      } finally {
-                        setIsProcessingFile(false);
-                        setProcessingProgress(0);
-                      }
+                      const text = await extractTextFromPDF(file);
+                      setUploadedFile({ name: file.name, content: text });
+                      setIsProcessingFile(false);
                     }
                   }} accept="application/pdf" className="hidden" />
                   {isProcessingFile ? (
-                     <div className="flex flex-col gap-2 px-3 py-2 text-sm text-orange-600 font-bold min-w-[200px]">
-                       <div className="flex items-center gap-2">
-                         <Loader2 size={16} className="animate-spin" />
-                         <span>Analizando PDF... {processingProgress}%</span>
-                       </div>
-                       <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2">
-                         <div 
-                           className="bg-orange-500 h-2 rounded-full transition-all duration-300" 
-                           style={{ width: `${processingProgress}%` }}
-                         ></div>
-                       </div>
-                     </div>
+                     <div className="flex items-center gap-2 px-3 py-2 text-sm text-orange-600 font-bold"><Loader2 size={16} className="animate-spin" /><span>Analizando...</span></div>
                   ) : uploadedFile ? (
                      <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 rounded-lg border border-emerald-200 text-sm font-bold"><FileText size={14} /><span className="truncate max-w-[150px]">{uploadedFile.name}</span><button onClick={() => setUploadedFile(null)} className="hover:text-rose-500 transition-colors cursor-pointer"><X size={12} /></button></div>
                   ) : (

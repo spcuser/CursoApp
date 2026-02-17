@@ -11,7 +11,6 @@ interface VariationSelectionProps {
   t: TranslationDictionary;
   searchTerm?: string;
   variationScores?: Record<string, { score: number; total: number }>;
-  searchHighlight?: string;
 }
 
 const cleanMarkdown = (text: string = '') => {
@@ -19,51 +18,27 @@ const cleanMarkdown = (text: string = '') => {
   return text.toString().replace(/\*\*/g, '').replace(/__/g, '').replace(/###/g, '').replace(/##/g, '').replace(/#/g, '');
 };
 
-export const VariationSelection: React.FC<VariationSelectionProps> = ({ pillar, variations, onSelect, onBack, t, searchTerm, variationScores = {}, searchHighlight }) => {
+export const VariationSelection: React.FC<VariationSelectionProps> = ({ pillar, variations, onSelect, onBack, t, searchTerm, variationScores = {} }) => {
   const [depth, setDepth] = useState<CourseDepth>('standard');
 
   const highlightMatch = (text: string = '') => {
     const cleaned = cleanMarkdown(text);
-    
-    // Primero resaltar el término de búsqueda activa (naranja)
     const term = searchTerm?.trim();
-    if (term && term.length >= 2) {
-      const safeTerm = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const regex = new RegExp(`(${safeTerm})`, 'gi');
-      const parts = cleaned.split(regex);
-      return (
-        <span>
-          {parts.map((p, i) => 
-            regex.test(p) ? (
-              <mark key={i} className="bg-orange-500/30 text-orange-100 rounded-[2px] px-[2px] mx-[-1px] font-medium border-b border-orange-300">
-                {p}
-              </mark>
-            ) : p
-          )}
-        </span>
-      );
-    }
-    
-    // Luego resaltar el término del resultado clickeado (azul con animación)
-    const highlight = searchHighlight?.trim();
-    if (highlight && highlight.length >= 2) {
-      const safeHighlight = highlight.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const regex = new RegExp(`(${safeHighlight})`, 'gi');
-      const parts = cleaned.split(regex);
-      return (
-        <span>
-          {parts.map((p, i) => 
-            regex.test(p) ? (
-              <mark key={i} className="bg-blue-500 text-white rounded px-2 py-1 animate-pulse font-bold shadow-lg">
-                {p}
-              </mark>
-            ) : p
-          )}
-        </span>
-      );
-    }
-    
-    return cleaned;
+    if (!term || term.length < 2) return cleaned;
+    const safeTerm = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(`(${safeTerm})`, 'gi');
+    const parts = cleaned.split(regex);
+    return (
+      <span>
+        {parts.map((p, i) => 
+          regex.test(p) ? (
+            <mark key={i} className="bg-orange-500/30 text-orange-100 rounded-[2px] px-[2px] mx-[-1px] font-medium border-b border-orange-300">
+              {p}
+            </mark>
+          ) : p
+        )}
+      </span>
+    );
   };
 
   return (
@@ -97,7 +72,7 @@ export const VariationSelection: React.FC<VariationSelectionProps> = ({ pillar, 
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-[27px] pt-8">
         {(Array.isArray(variations) ? variations : []).map((v) => v && (
-          <button key={v.id} data-variation-id={v.id} onClick={() => onSelect(v, depth)} className="flex flex-col p-10 bg-[#444444] border border-white/5 rounded-[3rem] hover:border-orange-500/50 hover:shadow-2xl transition-all text-left group relative overflow-hidden active:scale-[0.98] mx-[5px]">
+          <button key={v.id} onClick={() => onSelect(v, depth)} className="flex flex-col p-10 bg-[#444444] border border-white/5 rounded-[3rem] hover:border-orange-500/50 hover:shadow-2xl transition-all text-left group relative overflow-hidden active:scale-[0.98] mx-[5px]">
             <div className="absolute top-0 right-0 p-10 opacity-0 group-hover:opacity-100 transition-all transform translate-x-4 group-hover:translate-x-0"><ArrowRight size={32} className="text-orange-500" /></div>
             <div className="flex justify-between items-start mb-6 gap-4">
               <span className={`text-xs font-black uppercase tracking-widest px-4 py-1.5 rounded-full border ${v.level === 'Principiante' ? 'bg-emerald-900/20 text-emerald-400 border-emerald-800/50' : v.level === 'Intermedio' ? 'bg-amber-900/20 text-amber-400 border-amber-800/50' : 'bg-rose-900/20 text-rose-400 border-rose-800/50'}`}>{v.level || 'General'}</span>
